@@ -137,37 +137,37 @@ jobs:
       contents: write
     steps:
       - name: Download distribution artifacts (sdist/wheel)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: distribution-artifacts
           path: release-assets/dist
 
       - name: Download Windows binary
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: binary-windows
           path: release-assets/bin
 
       - name: Download Linux binary
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: binary-linux
           path: release-assets/bin
 
       - name: Download macOS binary
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: binary-macos
           path: release-assets/bin
 
       - name: Download AppImage
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: appimage
           path: release-assets/appimage
 
       - name: Download Snap
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: snap
           path: release-assets/snap
