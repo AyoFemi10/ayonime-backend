@@ -82,7 +82,7 @@ jobs:
           mv dist/animepahe-dl dist/${{ inputs.artifact-name }}
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: binary-${{ inputs.target }}
           path: dist/${{ inputs.artifact-name }}
