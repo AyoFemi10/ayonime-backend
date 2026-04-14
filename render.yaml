@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ayonime-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000

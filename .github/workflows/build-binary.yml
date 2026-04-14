@@ -1,0 +1,89 @@
+name: Build Binary
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Operating system to build for'
+        required: true
+        type: string
+      target:
+        description: 'Target platform name'
+        required: true
+        type: string
+      artifact-name:
+        description: 'Name of the artifact file'
+        required: true
+        type: string
+      python-version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.11'
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Operating system to build for'
+        required: true
+        default: 'windows-latest'
+        type: string
+      target:
+        description: 'Target platform name'
+        required: true
+        default: 'windows'
+        type: string
+      artifact-name:
+        description: 'Name of the artifact file'
+        required: true
+        default: 'animepahe-dl-windows.exe'
+        type: string
+      python-version:
+        description: 'Python version to use'
+        required: false
+        default: '3.11'
+        type: string
+
+jobs:
+  build-binary:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.2.0
+
+      - name: Set up Python ${{ inputs.python-version }}
+        run: uv python install ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Build binary (Windows)
+        if: inputs.target == 'windows'
+        shell: bash
+        run: |
+          if [ -f animepahe-dl.spec ]; then
+            uv run pyinstaller animepahe-dl.spec
+          else
+            uv run pyinstaller --onefile --name animepahe-dl --console anime_downloader/__main__.py
+          fi
+          mv dist/animepahe-dl.exe dist/${{ inputs.artifact-name }}
+
+      - name: Build binary (Linux/macOS)
+        if: inputs.target != 'windows'
+        run: |
+          if [ -f animepahe-dl.spec ]; then
+            uv run pyinstaller animepahe-dl.spec
+          else
+            uv run pyinstaller --onefile --name animepahe-dl --console anime_downloader/__main__.py
+          fi
+          mv dist/animepahe-dl dist/${{ inputs.artifact-name }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: binary-${{ inputs.target }}
+          path: dist/${{ inputs.artifact-name }}
+          if-no-files-found: error

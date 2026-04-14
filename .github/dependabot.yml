@@ -1,0 +1,42 @@
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/London"
+    rebase-strategy: "auto"
+    open-pull-requests-limit: 5
+
+    groups:
+      patch-updates:
+        update-types:
+          - "patch"
+
+      minor-updates:
+        update-types:
+          - "minor"
+
+      major-updates:
+        update-types:
+          - "major"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/London"
+    rebase-strategy: "auto"
+    open-pull-requests-limit: 3
+
+    groups:
+      actions-patch-minor:
+        update-types:
+          - "patch"
+          - "minor"

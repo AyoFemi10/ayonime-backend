@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force release type even if no changes"
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
+          - prerelease
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: >
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      }}
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      tag: ${{ steps.release.outputs.tag }}
+    concurrency:
+      group: ${{ github.workflow }}-release-${{ github.ref_name }}
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Python Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v10.5.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          force: ${{ github.event.inputs.force || 'none' }}
+
+      - name: Install uv
+        if: steps.release.outputs.released == 'true'
+        uses: astral-sh/setup-uv@v7.2.0
+
+      - name: Build package
+        if: steps.release.outputs.released == 'true'
+        run: uv build
+
+      - name: Upload | Artifacts
+        if: steps.release.outputs.released == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: distribution-artifacts
+          path: dist
+          if-no-files-found: error
+
+  build-windows:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: windows-latest
+      target: windows
+      artifact-name: animepahe-dl-windows.exe
+
+  build-linux:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: ubuntu-latest
+      target: linux
+      artifact-name: animepahe-dl-linux
+
+  build-macos:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/build-binary.yml
+    with:
+      os: macos-latest
+      target: macos
+      artifact-name: animepahe-dl-macos
+
+  build-appimage:
+    needs: [release, build-linux]
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/build-appimage.yml
+    with:
+      binary-artifact: binary-linux
+      binary-file: animepahe-dl-linux
+
+  build-snap:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/build-snap.yml
+
+  publish-pypi:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/publish-pypi.yml
+    with:
+      artifact-name: distribution-artifacts
+    permissions:
+      contents: read
+      id-token: write
+
+  publish-aur:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/publish-aur.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+    secrets:
+      AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
+      AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+
+  upload-release-assets:
+    name: Upload release assets to GitHub
+    runs-on: ubuntu-latest
+    needs: [release, build-windows, build-linux, build-macos, build-appimage, build-snap]
+    if: needs.release.outputs.released == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Download distribution artifacts (sdist/wheel)
+        uses: actions/download-artifact@v7
+        with:
+          name: distribution-artifacts
+          path: release-assets/dist
+
+      - name: Download Windows binary
+        uses: actions/download-artifact@v7
+        with:
+          name: binary-windows
+          path: release-assets/bin
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v7
+        with:
+          name: binary-linux
+          path: release-assets/bin
+
+      - name: Download macOS binary
+        uses: actions/download-artifact@v7
+        with:
+          name: binary-macos
+          path: release-assets/bin
+
+      - name: Download AppImage
+        uses: actions/download-artifact@v7
+        with:
+          name: appimage
+          path: release-assets/appimage
+
+      - name: Download Snap
+        uses: actions/download-artifact@v7
+        with:
+          name: snap
+          path: release-assets/snap
+
+      - name: Rename assets with version tag
+        run: |
+          TAG="${{ needs.release.outputs.tag }}"
+          CLEAN_TAG="${TAG#v}"
+
+          echo "Tag: $TAG"
+          echo "Clean tag: $CLEAN_TAG"
+
+          mkdir -p release-assets/final
+
+          # Binaries
+          if [ -f "release-assets/bin/animepahe-dl-windows.exe" ]; then
+            mv release-assets/bin/animepahe-dl-windows.exe release-assets/final/animepahe-dl-${TAG}-windows.exe
+          fi
+
+          if [ -f "release-assets/bin/animepahe-dl-linux" ]; then
+            mv release-assets/bin/animepahe-dl-linux release-assets/final/animepahe-dl-${TAG}-linux
+          fi
+
+          if [ -f "release-assets/bin/animepahe-dl-macos" ]; then
+            mv release-assets/bin/animepahe-dl-macos release-assets/final/animepahe-dl-${TAG}-macos
+          fi
+
+          # AppImage
+          if [ -f "release-assets/appimage/animepahe-dl-x86_64.AppImage" ]; then
+            mv release-assets/appimage/animepahe-dl-x86_64.AppImage release-assets/final/animepahe-dl-${TAG}-x86_64.AppImage
+          fi
+
+          # Snap (whatever name it produced)
+          SNAP_FILE="$(find release-assets/snap -type f -name '*.snap' | head -n 1 || true)"
+          if [ -n "$SNAP_FILE" ]; then
+            mv "$SNAP_FILE" "release-assets/final/animepahe-dl-${TAG}.snap"
+          fi
+
+          # Keep dist as-is (wheel + sdist already include version)
+          cp -v release-assets/dist/* release-assets/final/ || true
+
+          echo "=== Final assets ==="
+          ls -lah release-assets/final
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.tag }}
+          files: |
+            release-assets/final/*

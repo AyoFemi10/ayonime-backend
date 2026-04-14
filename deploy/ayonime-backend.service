@@ -1,0 +1,15 @@
+[Unit]
+Description=AYONIME FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/ayonime
+ExecStart=/var/www/ayonime/venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 4
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

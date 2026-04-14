@@ -1,0 +1,398 @@
+# CHANGELOG
+
+<!-- version list -->
+
+## v5.10.0 (2026-02-20)
+
+### Chores
+
+- Remove homebrew support and fix version display
+  ([`b84c2ed`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/b84c2edf38c654c7f4e3cf535f78af0c386da9b7))
+
+- Remove homebrew support and fix version display
+  ([`5ec1edc`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/5ec1edce23ea4c0be83eff5d7d8a5887c566ec79))
+
+
+## v5.9.1 (2026-02-18)
+
+### Bug Fixes
+
+- Stabilize binary and appimage builds
+  ([`32104e5`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/32104e5444345613cb14fad6c16d723c17fcf1d7))
+
+
+## v5.9.0 (2026-01-16)
+
+### Bug Fixes
+
+- **appimage**: Set single main category and copy icon to AppDir root
+  ([`42746a5`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/42746a5a99a1b031a0cbac055a2f0f5f2e02129e))
+
+### Features
+
+- **cli**: Add interactive play option
+  ([`48626c6`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/48626c6775bbdaa1c38c105e33d5905413e23850))
+
+
+## v5.8.1 (2026-01-16)
+
+### Bug Fixes
+
+- Attestations issues with pypi
+  ([`53396e4`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/53396e4c1be0f56068a64a132446895bf165c8ca))
+
+
+## v5.8.0 (2026-01-16)
+
+### Bug Fixes
+
+- Add PyQt6 system dependencies for Ubuntu CI
+  ([`a79c5a8`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/a79c5a87db4387c68a59f3168ffab0996c7f8d25))
+
+- Add PyQt6 system dependencies for Ubuntu CI
+  ([#45](https://github.com/ayushjaipuriyar/animepahe-dl/pull/45),
+  [`67cb5a7`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/67cb5a7ec3f3ede311b17edc1185a79292c79520))
+
+- Correct AppImage desktop file location and appimagetool path
+  ([`6ee90b5`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/6ee90b5b76ebf0133ed58f792e6f7af3673754a6))
+
+- Correct AppImage desktop file location and appimagetool path
+  ([#45](https://github.com/ayushjaipuriyar/animepahe-dl/pull/45),
+  [`67cb5a7`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/67cb5a7ec3f3ede311b17edc1185a79292c79520))
+
+- Grant id-token for publish-pypi reusable workflow
+  ([`1a3a031`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/1a3a0312314e565984c31ca3a851cf55a8e596e2))
+
+### Chores
+
+- **deps**: Bump actions/download-artifact from 6 to 7
+  ([#35](https://github.com/ayushjaipuriyar/animepahe-dl/pull/35),
+  [`3475548`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/34755480cd5a038192fe713cb7cd9b030b263dd4))
+
+- **deps**: Bump actions/upload-artifact from 5 to 6
+  ([#34](https://github.com/ayushjaipuriyar/animepahe-dl/pull/34),
+  [`6981b2c`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/6981b2c25d06708b3bd9ca86022828bf235c9c82))
+
+- **deps**: Bump beautifulsoup4 from 4.14.2 to 4.14.3
+  ([#25](https://github.com/ayushjaipuriyar/animepahe-dl/pull/25),
+  [`e96c3c3`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/e96c3c32b7dc1da137bb13d61652ea23c9343389))
+
+- **deps**: Bump python-semantic-release/python-semantic-release
+  ([#33](https://github.com/ayushjaipuriyar/animepahe-dl/pull/33),
+  [`0e9fc7f`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/0e9fc7f40b80486cba67d1965f8346a09397f5d7))
+
+- **deps**: Bump the minor-updates group across 1 directory with 4 updates
+  ([#36](https://github.com/ayushjaipuriyar/animepahe-dl/pull/36),
+  [`e911c63`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/e911c6395ecfd618e2c3192f11c4f2ae5be499b0))
+
+### Refactoring
+
+- Modernize GitHub Actions workflows and remove _reusable- prefix
+  ([`ae85a56`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/ae85a5623a885e2b6e0b94bbc85bb2439c9632f5))
+
+- Modernize GitHub Actions workflows and remove _reusable- prefix
+  ([#45](https://github.com/ayushjaipuriyar/animepahe-dl/pull/45),
+  [`67cb5a7`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/67cb5a7ec3f3ede311b17edc1185a79292c79520))
+
+
+## v5.7.0-dev.1 (2025-12-26)
+
+### Bug Fixes
+
+- Add test step to CI workflow
+  ([`2741e2a`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/2741e2aca7c48f44185226a5e78571d903f3c85d))
+## v5.7.0 (2025-12-26)
+
+### Bug Fixes
+
+- Add test step to CI workflow ([#42](https://github.com/ayushjaipuriyar/animepahe-dl/pull/42),
+  [`44a5416`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/44a54168d04eefc39c2ccf8869ae1b955b9fb3fa))
+
+- Resolve PyInstaller executable build issues
+  ([#42](https://github.com/ayushjaipuriyar/animepahe-dl/pull/42),
+  [`44a5416`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/44a54168d04eefc39c2ccf8869ae1b955b9fb3fa))
+
+- Separate build process from semantic-release
+  ([#42](https://github.com/ayushjaipuriyar/animepahe-dl/pull/42),
+  [`44a5416`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/44a54168d04eefc39c2ccf8869ae1b955b9fb3fa))
+
+- Use standard python build command in semantic-release
+  ([#42](https://github.com/ayushjaipuriyar/animepahe-dl/pull/42),
+  [`44a5416`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/44a54168d04eefc39c2ccf8869ae1b955b9fb3fa))
+
+- Use virtual environments for package testing
+  ([#42](https://github.com/ayushjaipuriyar/animepahe-dl/pull/42),
+  [`44a5416`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/44a54168d04eefc39c2ccf8869ae1b955b9fb3fa))
+
+### Features
+
+- Add comprehensive binary release automation
+  ([#42](https://github.com/ayushjaipuriyar/animepahe-dl/pull/42),
+  [`44a5416`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/44a54168d04eefc39c2ccf8869ae1b955b9fb3fa))
+
+- Enhance GUI interface and update build configuration
+  ([#42](https://github.com/ayushjaipuriyar/animepahe-dl/pull/42),
+  [`44a5416`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/44a54168d04eefc39c2ccf8869ae1b955b9fb3fa))
+
+
+## v5.6.0 (2025-12-23)
+
+### Bug Fixes
+
+- Separate build process from semantic-release
+  ([`fea90c2`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/fea90c2809ac8a0c0c2f92ca9a7b29694250bb4f))
+
+- Use standard python build command in semantic-release
+  ([`c634f36`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/c634f36cc277883eaaaa03dbf06a7720a0bf884d))
+
+- Use virtual environments for package testing
+  ([`a0d4232`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/a0d4232f566c7f352ef0ff4fba5729113fe814a5))
+
+### Features
+
+- Add comprehensive binary release automation
+  ([`19d04b2`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/19d04b21f5c19f7c58e3f62d5258c4cf53780a5e))
+
+### Refactoring
+
+- Update CLI imports to new commands submodule structure
+  ([`fe28337`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/fe28337d052bbba0e153acaa42f458bbe812c2d8))
+
+
+## v5.6.0-dev.2 (2025-12-14)
+
+
+## v5.6.0-dev.1 (2025-12-14)
+
+### Bug Fixes
+
+- Separate build process from semantic-release
+  ([`d3abf4f`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/d3abf4f496c904f93ce301fff94ccbb842c7999a))
+
+- Use standard python build command in semantic-release
+  ([`3797d84`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/3797d846c4e38984608c8a0042e408a454e48bcc))
+
+### Features
+
+- Add comprehensive binary release automation
+  ([`766984b`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/766984b9a3292cab4d19af2ff3fbaa4c094b0799))
+
+### Refactoring
+
+- Update CLI imports to new commands submodule structure
+  ([`fe28337`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/fe28337d052bbba0e153acaa42f458bbe812c2d8))
+
+
+## v5.5.0 (2025-12-13)
+
+### Chores
+
+- Add proper uv.lock file
+  ([`0c6192b`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/0c6192bed33b8645bd4f072a2db56409331389ca))
+
+- **deps**: Bump actions/checkout from 4 to 6
+  ([`d37d83c`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/d37d83c94e871d1199d214dfaa25f4915c548e99))
+
+- **deps**: Bump actions/download-artifact from 4 to 6
+  ([`2d53ff9`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/2d53ff9a7811302406b62f476fd1608ec5377d20))
+
+- **deps**: Bump actions/upload-artifact from 4 to 5
+  ([`d1b8e7e`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/d1b8e7ed6d1d642bd4564524786512a6a65037c6))
+
+- **deps**: Bump astral-sh/setup-uv from 4 to 7
+  ([`6864fd6`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/6864fd6c02161811743c99443974e4cb1f211b84))
+
+- **deps**: Bump beautifulsoup4 from 4.13.4 to 4.14.2
+  ([#15](https://github.com/ayushjaipuriyar/animepahe-dl/pull/15),
+  [`05f83f0`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/05f83f0993e2db48e7cea6c04d343ad1598314a8))
+
+- **deps**: Bump github/codeql-action from 3 to 4
+  ([#14](https://github.com/ayushjaipuriyar/animepahe-dl/pull/14),
+  [`06619ae`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/06619aeb7c72ff37881b9e767d83169f2504cb5a))
+
+- **deps**: Bump platformdirs from 4.3.8 to 4.4.0
+  ([`9e0b55c`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/9e0b55cad0c8bafdab41b2cad6e7175927238baf))
+
+- **deps**: Bump python-semantic-release from 10.2.0 to 10.5.2
+  ([#17](https://github.com/ayushjaipuriyar/animepahe-dl/pull/17),
+  [`ed38d19`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/ed38d1981c03fac052e3d84f6795d9c419f41277))
+
+- **deps**: Bump questionary from 2.1.0 to 2.1.1
+  ([`6626e70`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/6626e70710f98840e0a72e71c26b24d930e0d634))
+
+- **deps**: Bump twine from 6.1.0 to 6.2.0
+  ([#16](https://github.com/ayushjaipuriyar/animepahe-dl/pull/16),
+  [`653a30c`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/653a30cc6be8248f646c0ba257729c3951357365))
+
+### Features
+
+- Add direct streaming support with media player integration
+  ([`1c64d8a`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/1c64d8a05e8af7b39b0f80eb762915323465de0a))
+
+
+## v6.0.0 (2025-12-13)
+
+### Features
+
+- **Direct Streaming**: Added ability to play episodes directly using m3u8 streams without downloading
+- **Media Player Integration**: Auto-detection and support for mpv, VLC, ffplay, and mplayer
+- **GUI Streaming Support**: Added play button in GUI for direct episode streaming
+- **Desktop Notifications**: Enabled desktop notifications using plyer library for download completion and new episodes
+- **System Tray Support**: Added QSystemTrayIcon integration with context menu and background operation
+- **Daemon Mode**: Implemented continuous background monitoring with `--daemon` and `--daemon-action` flags
+- **Systemd Integration**: Added Linux service support with installation script for automatic startup
+- **Enhanced Episode Selection**: Fixed episode range filtering in interactive mode (e.g., "1", "1-5", "1,3,5")
+- **Improved CLI Arguments**: Enhanced mpv command line arguments with proper streaming headers and buffering
+- **Code Architecture Cleanup**: Removed duplicate code and unused OOP refactoring components
+
+### Bug Fixes
+
+- **Episode Model Constructor**: Fixed `Episode.__init__()` to use proper status management instead of `is_downloaded` parameter
+- **GUI Workers Import**: Fixed import errors for `get_video_path` function in GUI workers
+- **CLI Scoping Issue**: Resolved `UnboundLocalError` for `Anime` class in CLI commands
+- **Interactive Mode Filtering**: Fixed episode filtering logic to properly parse and apply user selections
+- **Media Player Launch**: Fixed mpv command line argument format and added proper error handling
+
+### Breaking Changes
+
+- **Episode Model API**: The `Episode` constructor no longer accepts `is_downloaded` parameter. Use `mark_as_downloaded()` method instead
+- **Import Structure**: Moved utility functions to proper modules. Import `get_video_path` from `anime_downloader.cli.commands` instead of `anime_downloader.cli`
+- **Removed Modules**: Eliminated duplicate services and unused OOP components:
+  - Removed `anime_downloader.services.api_service.py`
+  - Removed `anime_downloader.services.download_service.py`
+  - Removed `anime_downloader.core.base.py`, `anime_downloader.core.interfaces.py`, `anime_downloader.core.config.py`
+  - Removed entire `anime_downloader.controllers/` directory
+  - Removed unused GUI widgets: `anime_downloader.gui.widgets/`
+
+### Performance Improvements
+
+- **Reduced Code Duplication**: Eliminated redundant implementations improving maintainability
+- **Optimized Imports**: Cleaned up import structure reducing startup time
+- **Enhanced Streaming**: Added buffering and network timeout options for better streaming performance
+
+## v5.4.0 (2025-11-21)
+
+### Features
+
+- Comprehensive project improvements with UV migration
+  ([`e2aabf7`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/e2aabf76e8e65232e3463347963005bf04c71e2e))
+
+
+## v5.3.0 (2025-10-04)
+
+
+## v5.2.1 (2025-10-04)
+
+### Bug Fixes
+
+- Fix the aur package
+  ([`cf46518`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/cf46518dc5aae3460cd9f388a689cbfa4b83c942))
+
+
+## v5.2.0 (2025-10-04)
+
+### Features
+
+- M3u8 saving
+  ([`04b572b`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/04b572b852a082823accb13f68d0428e291e5a6f))
+
+
+## v5.1.5 (2025-07-29)
+
+### Bug Fixes
+
+- 🐛 small fix to the deploy
+  ([`5cbadd6`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/5cbadd68b69c09b3bda586f704dec3a003b28b85))
+
+
+## v5.1.4 (2025-07-29)
+
+### Bug Fixes
+
+- 🐛 fix the version logic
+  ([`bfa2b20`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/bfa2b20471f76ec2c0fb802422b07c8ac1b270a7))
+
+
+## v5.1.3 (2025-07-29)
+
+
+## v5.1.2 (2025-07-29)
+
+
+## v5.1.1 (2025-07-29)
+
+### Bug Fixes
+
+- 🐛 minro fix
+  ([`75ecba4`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/75ecba47c99282d7cf83ee3027fea77c82ee0c75))
+
+
+## v5.1.0 (2025-07-29)
+
+### Bug Fixes
+
+- 🐛 forgot @
+  ([`abd64d6`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/abd64d6dbbe65a5934ae4c20383a0b2f361fe705))
+
+
+## v5.0.0 (2025-07-29)
+
+
+## v4.0.0 (2025-07-29)
+
+### Bug Fixes
+
+- 🐛 relase some issue with oidc
+  ([`3491cf2`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/3491cf2a0f9dbe346faace3edb6eca3c8f27d3da))
+
+### Breaking Changes
+
+- 🧨 PYPI PUBLISH
+
+
+## v3.0.0 (2025-07-29)
+
+
+## v2.0.0 (2025-07-29)
+
+### Bug Fixes
+
+- 🐛 release
+  ([`6e24644`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/6e24644139a940e61195db4fcff21a63b280d571))
+
+- 🐛 release.yml Invalid workflow file: .github/workflows/rel
+  ([`1483361`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/1483361933e06e447a1ff3af276f005c81e1a63c))
+
+### Breaking Changes
+
+- 🧨 PYPI RELEASE
+
+
+## v1.0.0 (2025-07-29)
+
+### Bug Fixes
+
+- 🐛 release
+  ([`aef36ad`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/aef36ad90ddf07362b6b213ab143707cc42b517a))
+
+- 🐛 release fixing
+  ([`c310c64`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/c310c64d6620dc3154fe94946dc58c2b3dc6eace))
+
+- 🐛 semantic release issue
+  ([`3d376de`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/3d376de14bf7bf629147595baa8221cf3daf4fb8))
+
+### Features
+
+- 🎸 Release
+  ([`2efa8e9`](https://github.com/ayushjaipuriyar/animepahe-dl/commit/2efa8e9255ef077d276ef393c3d2405ae0dea6e4))
+
+### Breaking Changes
+
+- 🧨 First release to pypi
+
+- 🧨 PYPI RELEASE
+
+
+## v0.1.0 (2025-07-14)
+
+- Initial Release

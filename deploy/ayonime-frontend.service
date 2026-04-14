@@ -1,0 +1,16 @@
+[Unit]
+Description=AYONIME Next.js Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/ayonime/anime_vault-main
+ExecStart=/usr/bin/node /var/www/ayonime/anime_vault-main/node_modules/.bin/next start -p 3000
+Environment=NODE_ENV=production
+Environment=NEXT_PUBLIC_API_URL=https://yourdomain.com
+# Use all 4 cores for Next.js
+Environment=UV_THREADPOOL_SIZE=4
+
+[Install]
+WantedBy=multi-user.target
