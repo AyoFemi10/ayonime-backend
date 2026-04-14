@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.0.1 (2026-04-14)
+
+### Bug Fixes
+
+- Skip GUI import on headless servers
+  ([`86b4f01`](https://github.com/AyoFemi10/ayonime-backend/commit/86b4f01b9b592bb9d718b69275ccd74d2504e94e))
+
+
 ## v0.0.0 (2026-04-14)
 
 - Initial Release
