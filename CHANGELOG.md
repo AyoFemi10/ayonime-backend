@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.0.2 (2026-04-14)
+
+### Bug Fixes
+
+- Update animepahe domain to .pw
+  ([`89c4dbb`](https://github.com/AyoFemi10/ayonime-backend/commit/89c4dbb51586facbcdc7c739c4bb8f56fb9e743d))
+
+
 ## v0.0.1 (2026-04-14)
 
 ### Bug Fixes
