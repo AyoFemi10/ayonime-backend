@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.14 (2026-04-15)
+
+### Bug Fixes
+
+- Remove duplicate IIFE closing in player HTML causing SyntaxError
+  ([`aa380c9`](https://github.com/AyoFemi10/ayonime-backend/commit/aa380c96f06bc6a84e27631b444b95e6edd4fd4c))
+
+
 ## v0.1.13 (2026-04-15)
 
 ### Bug Fixes
