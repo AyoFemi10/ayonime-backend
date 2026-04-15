@@ -137,7 +137,8 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
   var origin = "{api_origin}";
   var src = origin + "/api/proxy/m3u8?url={encoded}";
   var video = document.getElementById("v");
-  if (typeof Hls !== "undefined" && Hls.isSupported()) {{
+
+  function startHls(Hls) {{
     var hls = new Hls({{
       enableWorker: false,
       lowLatencyMode: false,
@@ -161,12 +162,32 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
         }}
       }}
     }});
-  }} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
-    video.src = src;
-    video.play().catch(function(){{}});
-  }} else {{
-    document.body.innerHTML = "<p style='color:#fff;padding:2rem'>HLS not supported in this browser.</p>";
   }}
+
+  function loadHlsFromOrigin() {{
+    var s = document.createElement("script");
+    s.src = origin + "/api/hlsjs";
+    s.onload = function() {{
+      if (typeof Hls !== "undefined" && Hls.isSupported()) {{
+        startHls(Hls);
+      }} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
+        video.src = src; video.play().catch(function(){{}});
+      }}
+    }};
+    s.onerror = function() {{
+      document.body.innerHTML = "<p style='color:#fff;padding:2rem'>Failed to load player.</p>";
+    }};
+    document.head.appendChild(s);
+  }}
+
+  if (typeof Hls !== "undefined" && Hls.isSupported()) {{
+    startHls(Hls);
+  }} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
+    video.src = src; video.play().catch(function(){{}});
+  }} else {{
+    loadHlsFromOrigin();
+  }}
+}})();
 }})();
 </script>
 </body>
@@ -220,6 +241,19 @@ def _rewrite_media_m3u8(content: str, base: str, api_origin: str) -> str:
             lines_out.append(line)
 
     return "\n".join(lines_out)
+
+
+@app.get("/api/hlsjs")
+def serve_hlsjs():
+    """Serve hls.js from our own domain to avoid CDN tracking prevention blocks."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen("https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js", timeout=10) as r:
+            js = r.read()
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to fetch hls.js")
+    return Response(content=js, media_type="application/javascript",
+                    headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/proxy/m3u8")
