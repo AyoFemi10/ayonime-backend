@@ -74,9 +74,9 @@ def search(q: str = Query(..., min_length=1)):
 def get_airing():
     return {"data": api.check_for_updates()}
 
-@app.get("/api/recently-added")
+@app.get("/api/latest-release")
 def get_recently_added(page: int = Query(default=1, ge=1)):
-    """Paginated recently added anime — mirrors AnimePahe airing feed."""
+    """Paginated latest release anime — mirrors AnimePahe airing feed."""
     import json as _json
     from anime_downloader.utils import constants
     resp = api._request(f"{constants.AIRING_URL}&page={page}")
