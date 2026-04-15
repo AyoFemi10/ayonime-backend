@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.15 (2026-04-15)
+
+### Bug Fixes
+
+- Remove EXT-X-KEY from proxied m3u8 so hls.js doesnt double-decrypt
+  ([`b3ad3f4`](https://github.com/AyoFemi10/ayonime-backend/commit/b3ad3f4dabb47a7ee42c910704bae1c906b996bc))
+
+
 ## v0.1.14 (2026-04-15)
 
 ### Bug Fixes
