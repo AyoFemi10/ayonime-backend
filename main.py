@@ -104,7 +104,7 @@ def get_stream(
         raise HTTPException(status_code=404, detail="Playlist not found")
 
     token = _up.quote(m3u8_url, safe="")
-    return {"stream_url": f"/api/player?token={token}", "playlist_url": None}
+    return {"stream_url": f"/api/player?token={token}&_={uuid.uuid4().hex[:8]}", "playlist_url": None}
 
 
 @app.get("/api/player")
