@@ -158,7 +158,7 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
 </html>"""
 
     return HTMLResponse(content=html, headers={
-        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors *",
         "Cache-Control": "no-store",
     })
 
