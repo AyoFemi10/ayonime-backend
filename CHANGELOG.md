@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.0.3 (2026-04-15)
+
+### Bug Fixes
+
+- Use file-based job store so all workers share state
+  ([`506cc43`](https://github.com/AyoFemi10/ayonime-backend/commit/506cc43a50025230f6a8f1836df7db3c8a342d56))
+
+
 ## v0.0.2 (2026-04-14)
 
 ### Bug Fixes
