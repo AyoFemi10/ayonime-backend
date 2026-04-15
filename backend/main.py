@@ -104,100 +104,155 @@ def get_stream(
     stream_url = api.get_stream_url(anime_slug, episode_session, quality, audio)
     if not stream_url:
         raise HTTPException(status_code=404, detail="Stream not found")
-    # Return a proxied player URL — kwik URL never exposed to browser
+    playlist_url = api.get_playlist_url(stream_url)
+    if not playlist_url:
+        raise HTTPException(status_code=404, detail="Playlist not found")
     import urllib.parse as _up
-    proxied = f"/api/player?token={_up.quote(stream_url, safe='')}"
-    return {"stream_url": proxied, "playlist_url": None}
+    # Return a player page URL — fully served from our domain
+    token = _up.quote(playlist_url, safe="")
+    return {"stream_url": stream_url, "playlist_url": f"/api/player?token={token}"}
 
 
 @app.get("/api/player")
 def get_player(token: str = Query(...)):
     """
-    Fetch the kwik player page server-side, rewrite all asset URLs to proxy
-    through our backend. kwik.cx never appears in the browser.
+    Serve a self-contained HLS player page.
+    Fetches the m3u8, proxies + decrypts all segments server-side.
+    Browser only ever talks to apis.ayohost.site.
     """
     import urllib.parse as _up
     from fastapi.responses import HTMLResponse
-    from bs4 import BeautifulSoup
 
-    kwik_url = _up.unquote(token)
-    kwik_origin = "https://kwik.cx"
+    playlist_url = _up.unquote(token)
+    encoded = _up.quote(playlist_url, safe="")
 
-    resp = api._request(kwik_url)
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+html,body{{width:100%;height:100%;background:#000;overflow:hidden}}
+video{{width:100%;height:100%;object-fit:contain}}
+</style>
+</head>
+<body>
+<video id="v" controls autoplay playsinline></video>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script>
+(function(){{
+  var src = "/api/proxy/playlist?url={encoded}";
+  var video = document.getElementById("v");
+  if(Hls.isSupported()){{
+    var hls = new Hls({{enableWorker:true}});
+    hls.loadSource(src);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, function(){{ video.play(); }});
+  }} else if(video.canPlayType("application/vnd.apple.mpegurl")){{
+    video.src = src;
+    video.play();
+  }}
+}})();
+</script>
+</body>
+</html>"""
+
+    return HTMLResponse(content=html, headers={
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors 'self' https://ayonime.ayohost.site https://ayonime.vercel.app",
+    })
+
+
+@app.get("/api/proxy/playlist")
+def proxy_playlist(url: str = Query(...)):
+    """Fetch m3u8, rewrite key + segment URLs to go through our backend."""
+    import urllib.parse as _up
+    import re as _re
+    from fastapi.responses import Response as FastResponse
+
+    resp = api._request(url)
     if not resp:
-        return HTMLResponse("<p style='color:white;font-family:sans-serif;padding:2rem'>Failed to load player.</p>", status_code=502)
+        raise HTTPException(status_code=502, detail="Failed to fetch playlist")
 
-    html = resp.data.decode("utf-8", errors="replace")
-    soup = BeautifulSoup(html, "html.parser")
+    content = resp.data.decode("utf-8")
+    base_url = url.rsplit("/", 1)[0]
 
-    # Rewrite all src/href attributes — relative → proxied absolute
-    for tag in soup.find_all(["script", "link", "img"]):
-        for attr in ("src", "href"):
-            val = tag.get(attr)
-            if not val or val.startswith("data:") or val.startswith("#"):
-                continue
-            if val.startswith("//"):
-                val = "https:" + val
-            elif val.startswith("/"):
-                val = kwik_origin + val
-            elif not val.startswith("http"):
-                val = kwik_origin + "/" + val
-            # Proxy through our backend
-            tag[attr] = f"/api/asset?url={_up.quote(val, safe='')}"
+    # Parse key URL
+    key_url = None
+    m = _re.search(r'#EXT-X-KEY:METHOD=AES-128,URI="([^"]+)"', content)
+    if m:
+        key_url = m.group(1)
 
-    # Rewrite inline script src references (eval'd code uses relative paths)
-    raw = str(soup)
-    # Replace any remaining kwik.cx references in inline scripts
-    raw = raw.replace("kwik.cx", "apis.ayohost.site/api/asset?url=https%3A%2F%2Fkwik.cx")
+    # Parse media sequence
+    seq = 0
+    ms = _re.search(r'#EXT-X-MEDIA-SEQUENCE:(\d+)', content)
+    if ms:
+        seq = int(ms.group(1))
 
-    # Inject base tag so relative XHR calls resolve correctly
-    base_inject = f'<base href="{kwik_origin}/">'
-    raw = raw.replace("<head>", f"<head>{base_inject}", 1)
+    lines_out = []
+    seg_index = seq
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#EXT-X-KEY") and key_url:
+            proxied_key = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
+            lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{proxied_key}"')
+        elif stripped and not stripped.startswith("#"):
+            seg_url = stripped if stripped.startswith("http") else f"{base_url}/{stripped}"
+            lines_out.append(
+                f"/api/proxy/segment?url={_up.quote(seg_url, safe='')}&key_url={_up.quote(key_url or '', safe='')}&idx={seg_index}"
+            )
+            seg_index += 1
+        else:
+            lines_out.append(line)
 
-    # Add styles to fill the iframe
-    style_inject = "<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;background:#000;overflow:hidden}video{width:100%!important;height:100%!important;object-fit:contain}</style>"
-    raw = raw.replace("</head>", f"{style_inject}</head>", 1)
-
-    return HTMLResponse(
-        content=raw,
-        headers={
-            "Content-Security-Policy": "frame-ancestors 'self' https://ayonime.ayohost.site https://ayonime.vercel.app",
-            "X-Frame-Options": "SAMEORIGIN",
-        }
+    return FastResponse(
+        content="\n".join(lines_out),
+        media_type="application/vnd.apple.mpegurl",
+        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
     )
 
 
-@app.get("/api/asset")
-def proxy_asset(url: str = Query(...)):
-    """Proxy any kwik.cx static asset (js, css, etc.) through our backend."""
-    import urllib.parse as _up
+@app.get("/api/proxy/key")
+def proxy_key(url: str = Query(...)):
+    """Proxy the AES-128 decryption key."""
     from fastapi.responses import Response as FastResponse
-    import mimetypes
-
-    real_url = _up.unquote(url)
-    resp = api._request(real_url)
+    resp = api._request(url)
     if not resp:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(status_code=502, detail="Failed to fetch key")
+    return FastResponse(
+        content=resp.data,
+        media_type="application/octet-stream",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
-    # Guess content type from URL
-    mime, _ = mimetypes.guess_type(real_url.split("?")[0])
-    mime = mime or "application/octet-stream"
 
-    content = resp.data
-    # If JS, rewrite any internal kwik references
-    if "javascript" in mime or real_url.endswith(".js"):
-        try:
-            text = content.decode("utf-8", errors="replace")
-            text = text.replace(
-                '"/app/', f'"/api/asset?url={_up.quote("https://kwik.cx/app/", safe="")}'
-            )
-            content = text.encode("utf-8")
-        except Exception:
-            pass
+@app.get("/api/proxy/segment")
+def proxy_segment(url: str = Query(...), key_url: str = Query(...), idx: int = Query(...)):
+    """Fetch, decrypt and serve a single .ts segment."""
+    from fastapi.responses import Response as FastResponse
+    from Crypto.Cipher import AES as _AES
+
+    key_resp = api._request(key_url)
+    if not key_resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch key")
+    key = key_resp.data
+
+    seg_resp = api._request(url)
+    if not seg_resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch segment")
+
+    encrypted = seg_resp.data
+    while len(encrypted) % 16 != 0:
+        encrypted += b"\0"
+
+    iv = idx.to_bytes(16, byteorder="big")
+    cipher = _AES.new(key, _AES.MODE_CBC, iv)
+    decrypted = cipher.decrypt(encrypted)
 
     return FastResponse(
-        content=content,
-        media_type=mime,
+        content=decrypted,
+        media_type="video/mp2t",
         headers={"Access-Control-Allow-Origin": "*"},
     )
 
