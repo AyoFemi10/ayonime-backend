@@ -74,6 +74,38 @@ def search(q: str = Query(..., min_length=1)):
 def get_airing():
     return {"data": api.check_for_updates()}
 
+@app.get("/api/recently-added")
+def get_recently_added(page: int = Query(default=1, ge=1)):
+    """Paginated recently added anime — mirrors AnimePahe airing feed."""
+    import json as _json
+    from anime_downloader.utils import constants
+    resp = api._request(f"{constants.AIRING_URL}&page={page}")
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch recently added")
+    data = _json.loads(resp.read())
+    return {
+        "data": data.get("data", []),
+        "total": data.get("total", 0),
+        "per_page": data.get("per_page", 30),
+        "current_page": data.get("current_page", page),
+        "last_page": data.get("last_page", 1),
+    }
+
+@app.get("/api/top-anime")
+def get_top_anime():
+    """Top anime from AnimePahe — uses the anime list cache sorted by popularity."""
+    import json as _json
+    from anime_downloader.utils import constants
+    # AnimePahe exposes a top list via m=top
+    resp = api._request(f"{constants.BASE_URL}/api?m=top")
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch top anime")
+    try:
+        data = _json.loads(resp.read())
+        return {"data": data.get("data", data) if isinstance(data, dict) else data}
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to parse top anime")
+
 @app.get("/api/anime/{slug}/episodes")
 def get_episodes(slug: str, anime_name: str = Query(default="")):
     episodes = api.fetch_episode_data(anime_name or slug, slug)
