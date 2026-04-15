@@ -116,6 +116,8 @@ def get_player(token: str = Query(...)):
     """
     m3u8_url = _up.unquote(token)
     encoded = _up.quote(m3u8_url, safe="")
+    # Use absolute URL so iframe requests go to the right domain
+    api_origin = os.environ.get("API_ORIGIN", "https://apis.ayohost.site")
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -133,7 +135,7 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script>
 (function(){{
-  var src = "/api/proxy/m3u8?url={encoded}";
+  var src = "{api_origin}/api/proxy/m3u8?url={encoded}";
   var video = document.getElementById("v");
   if (typeof Hls !== "undefined" && Hls.isSupported()) {{
     var hls = new Hls({{
