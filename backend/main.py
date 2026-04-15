@@ -107,51 +107,152 @@ def get_stream(
     playlist_url = api.get_playlist_url(stream_url)
     if not playlist_url:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    # Return proxied URL so browser requests go through our backend
-    # which adds the correct Referer/headers
-    proxied = f"/api/proxy/playlist?url={playlist_url}&referer={stream_url}"
-    return {"stream_url": stream_url, "playlist_url": proxied}
+
+    # Fetch and parse the real playlist to get key + segments
+    resp = api._request(playlist_url)
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch playlist")
+
+    content = resp.data.decode("utf-8")
+    base_url = playlist_url.rsplit("/", 1)[0]
+
+    # Parse key URL and segments
+    import re as _re
+    key_url = None
+    segments = []
+    media_sequence = 0
+
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith("#EXT-X-MEDIA-SEQUENCE"):
+            try:
+                media_sequence = int(line.split(":")[1])
+            except Exception:
+                pass
+        elif line.startswith("#EXT-X-KEY"):
+            m = _re.search('URI="([^"]+)"', line)
+            if m:
+                key_url = m.group(1)
+        elif line and not line.startswith("#"):
+            seg_url = line if line.startswith("http") else f"{base_url}/{line}"
+            segments.append(seg_url)
+
+    if not key_url or not segments:
+        raise HTTPException(status_code=502, detail="Could not parse playlist")
+
+    # Return a proxied m3u8 that points segments + key through our backend
+    # The key endpoint will serve the real key, segment endpoint decrypts on the fly
+    import urllib.parse as _up
+    proxied_key = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
+    proxied_lines = [
+        "#EXTM3U",
+        "#EXT-X-VERSION:3",
+        f"#EXT-X-MEDIA-SEQUENCE:{media_sequence}",
+        f'#EXT-X-KEY:METHOD=AES-128,URI="{proxied_key}"',
+        "#EXT-X-TARGETDURATION:10",
+    ]
+    for i, seg_url in enumerate(segments):
+        proxied_lines.append("#EXTINF:10.0,")
+        idx = media_sequence + i
+        proxied_lines.append(
+            f"/api/proxy/segment?url={_up.quote(seg_url, safe='')}&key_url={_up.quote(key_url, safe='')}&idx={idx}"
+        )
+    proxied_lines.append("#EXT-X-ENDLIST")
+
+    from fastapi.responses import Response as FastResponse
+    proxied_m3u8 = "\n".join(proxied_lines)
+    return {"stream_url": stream_url, "playlist_url": f"/api/proxy/playlist?url={_up.quote(playlist_url, safe='')}&key_url={_up.quote(key_url, safe='')}&base={_up.quote(base_url, safe='')}&seq={media_sequence}"}
 
 
 @app.get("/api/proxy/playlist")
-def proxy_playlist(url: str = Query(...), referer: str = Query(default="")):
-    """Proxy the m3u8 playlist, rewriting segment URLs to also go through proxy."""
+def proxy_playlist(
+    url: str = Query(...),
+    key_url: str = Query(...),
+    base: str = Query(...),
+    seq: int = Query(default=0),
+):
+    """Serve a rewritten m3u8 with proxied key + decrypted segment URLs."""
+    import urllib.parse as _up
+    import re as _re
     from fastapi.responses import Response as FastResponse
-    headers = {
-        "Referer": referer or "https://kwik.cx/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": "https://kwik.cx",
-    }
+
     resp = api._request(url)
     if not resp:
         raise HTTPException(status_code=502, detail="Failed to fetch playlist")
-    content = resp.data.decode("utf-8")
 
-    # Rewrite segment URLs to go through /api/proxy/segment
-    base_url = url.rsplit("/", 1)[0]
-    lines = []
+    content = resp.data.decode("utf-8")
+    lines_out = []
+    seg_index = seq
+
     for line in content.splitlines():
-        if line and not line.startswith("#"):
-            seg_url = line if line.startswith("http") else f"{base_url}/{line}"
-            line = f"/api/proxy/segment?url={seg_url}&referer={referer}"
-        lines.append(line)
+        stripped = line.strip()
+        if stripped.startswith("#EXT-X-KEY"):
+            # Replace key URI with our proxy
+            proxied_key = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
+            lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{proxied_key}"')
+        elif stripped and not stripped.startswith("#"):
+            seg_url = stripped if stripped.startswith("http") else f"{base}/{stripped}"
+            lines_out.append(
+                f"/api/proxy/segment?url={_up.quote(seg_url, safe='')}&key_url={_up.quote(key_url, safe='')}&idx={seg_index}"
+            )
+            seg_index += 1
+        else:
+            lines_out.append(line)
 
     return FastResponse(
-        content="\n".join(lines),
+        content="\n".join(lines_out),
         media_type="application/vnd.apple.mpegurl",
+        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/api/proxy/key")
+def proxy_key(url: str = Query(...)):
+    """Proxy the AES-128 decryption key with correct headers."""
+    from fastapi.responses import Response as FastResponse
+    resp = api._request(url)
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch key")
+    return FastResponse(
+        content=resp.data,
+        media_type="application/octet-stream",
         headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
 @app.get("/api/proxy/segment")
-def proxy_segment(url: str = Query(...), referer: str = Query(default="")):
-    """Proxy a single .ts video segment with correct headers."""
+def proxy_segment(
+    url: str = Query(...),
+    key_url: str = Query(...),
+    idx: int = Query(...),
+):
+    """Fetch, decrypt and serve a single .ts segment."""
     from fastapi.responses import Response as FastResponse
-    resp = api._request(url)
-    if not resp:
+    from Crypto.Cipher import AES as _AES
+
+    # Fetch key
+    key_resp = api._request(key_url)
+    if not key_resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch key")
+    key = key_resp.data
+
+    # Fetch encrypted segment
+    seg_resp = api._request(url)
+    if not seg_resp:
         raise HTTPException(status_code=502, detail="Failed to fetch segment")
+
+    encrypted = seg_resp.data
+    # Pad to AES block size
+    while len(encrypted) % 16 != 0:
+        encrypted += b"\0"
+
+    # IV = segment index as 16-byte big-endian
+    iv = idx.to_bytes(16, byteorder="big")
+    cipher = _AES.new(key, _AES.MODE_CBC, iv)
+    decrypted = cipher.decrypt(encrypted)
+
     return FastResponse(
-        content=resp.data,
+        content=decrypted,
         media_type="video/mp2t",
         headers={"Access-Control-Allow-Origin": "*"},
     )
