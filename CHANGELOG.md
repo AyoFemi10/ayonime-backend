@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.5 (2026-04-15)
+
+### Bug Fixes
+
+- Use absolute API origin in player iframe + fix horizontal scroll
+  ([`d161418`](https://github.com/AyoFemi10/ayonime-backend/commit/d161418b8d03a021ccdb9335c81d4827d63515ec))
+
+
 ## v0.1.4 (2026-04-15)
 
 ### Bug Fixes
