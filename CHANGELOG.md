@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.1 (2026-04-15)
+
+### Bug Fixes
+
+- Proxy all kwik assets through backend, rewrite relative urls
+  ([`cd7eacb`](https://github.com/AyoFemi10/ayonime-backend/commit/cd7eacb56e212ca917486d75560b685314dcf5ff))
+
+
 ## v0.0.5 (2026-04-15)
 
 ### Bug Fixes
