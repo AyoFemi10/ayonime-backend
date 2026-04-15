@@ -116,7 +116,6 @@ def get_player(token: str = Query(...)):
     """
     m3u8_url = _up.unquote(token)
     encoded = _up.quote(m3u8_url, safe="")
-    # Use absolute URL so iframe requests go to the right domain
     api_origin = os.environ.get("API_ORIGIN", "https://apis.ayohost.site")
 
     html = f"""<!DOCTYPE html>
@@ -135,18 +134,32 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script>
 (function(){{
-  var src = "{api_origin}/api/proxy/m3u8?url={encoded}";
+  var origin = "{api_origin}";
+  var src = origin + "/api/proxy/m3u8?url={encoded}";
   var video = document.getElementById("v");
   if (typeof Hls !== "undefined" && Hls.isSupported()) {{
     var hls = new Hls({{
       enableWorker: true,
-      xhrSetup: function(xhr) {{ xhr.withCredentials = false; }}
+      xhrSetup: function(xhr, url) {{
+        // Make relative proxy URLs absolute
+        if (url.startsWith("/api/")) {{
+          xhr.open("GET", origin + url, true);
+        }}
+        xhr.withCredentials = false;
+      }}
     }});
     hls.loadSource(src);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, function() {{ video.play().catch(function(){{}}); }});
     hls.on(Hls.Events.ERROR, function(e, data) {{
-      if (data.fatal) console.error("HLS fatal error", data.type, data.details);
+      if (data.fatal) {{
+        console.error("HLS fatal error", data.type, data.details);
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {{
+          hls.startLoad();
+        }} else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {{
+          hls.recoverMediaError();
+        }}
+      }}
     }});
   }} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
     video.src = src;
@@ -172,6 +185,7 @@ def proxy_m3u8(url: str = Query(...)):
     - #EXT-X-KEY URI → /api/proxy/key
     - segment lines  → /api/proxy/seg (which decrypts server-side)
     """
+    api_origin = os.environ.get("API_ORIGIN", "https://apis.ayohost.site")
     resp = api._request(url)
     if not resp:
         raise HTTPException(status_code=502, detail="Failed to fetch m3u8")
@@ -195,13 +209,13 @@ def proxy_m3u8(url: str = Query(...)):
     for line in content.splitlines():
         s = line.strip()
         if s.startswith("#EXT-X-KEY") and key_url:
-            pk = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
+            pk = f"{api_origin}/api/proxy/key?url={_up.quote(key_url, safe='')}"
             lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{pk}"')
         elif s and not s.startswith("#"):
             seg_url = s if s.startswith("http") else f"{base}/{s}"
             ku = _up.quote(key_url or "", safe="")
             su = _up.quote(seg_url, safe="")
-            lines_out.append(f"/api/proxy/seg?url={su}&key={ku}&idx={seg_idx}")
+            lines_out.append(f"{api_origin}/api/proxy/seg?url={su}&key={ku}&idx={seg_idx}")
             seg_idx += 1
         else:
             lines_out.append(line)
