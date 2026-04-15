@@ -141,11 +141,6 @@ def get_stream(
 
 @app.get("/api/player")
 def get_player(token: str = Query(...)):
-    """
-    Serve a self-contained HLS player page from our domain.
-    Uses hls.js + our /api/proxy/* endpoints to decrypt and stream.
-    Browser only ever talks to apis.ayohost.site — kwik is invisible.
-    """
     m3u8_url = _up.unquote(token)
     encoded = _up.quote(m3u8_url, safe="")
     api_origin = os.environ.get("API_ORIGIN", "https://apis.ayohost.site")
@@ -157,19 +152,216 @@ def get_player(token: str = Query(...)):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-html,body{{width:100%;height:100%;background:#000;overflow:hidden}}
-video{{width:100%;height:100%;object-fit:contain;display:block}}
+html,body{{width:100%;height:100%;background:#000;overflow:hidden;font-family:system-ui,sans-serif}}
+#wrap{{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#000}}
+video{{width:100%;height:100%;object-fit:contain;display:block;cursor:pointer}}
+#controls{{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:12px 16px 14px;
+  background:linear-gradient(transparent,rgba(0,0,0,.85));
+  display:flex;flex-direction:column;gap:8px;
+  opacity:0;transition:opacity .25s;
+  pointer-events:none;
+}}
+#wrap:hover #controls,#wrap.show-controls #controls{{opacity:1;pointer-events:all}}
+#progress-wrap{{position:relative;height:4px;background:rgba(255,255,255,.2);border-radius:4px;cursor:pointer}}
+#progress-wrap:hover{{height:6px}}
+#progress-buf{{position:absolute;left:0;top:0;height:100%;background:rgba(255,255,255,.3);border-radius:4px;width:0}}
+#progress-bar{{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#7c3aed,#ec4899);border-radius:4px;width:0}}
+#progress-thumb{{
+  position:absolute;top:50%;right:-6px;transform:translateY(-50%);
+  width:12px;height:12px;border-radius:50%;background:#fff;
+  opacity:0;transition:opacity .15s;box-shadow:0 0 6px rgba(124,58,237,.8);
+}}
+#progress-wrap:hover #progress-thumb{{opacity:1}}
+#bottom{{display:flex;align-items:center;gap:10px}}
+.btn{{background:none;border:none;cursor:pointer;color:#fff;padding:4px;display:flex;align-items:center;justify-content:center;opacity:.9;transition:opacity .15s}}
+.btn:hover{{opacity:1}}
+#time{{color:#fff;font-size:12px;font-weight:600;letter-spacing:.3px;white-space:nowrap}}
+#vol-wrap{{display:flex;align-items:center;gap:6px}}
+#vol-slider{{-webkit-appearance:none;appearance:none;width:70px;height:3px;border-radius:3px;background:rgba(255,255,255,.3);outline:none;cursor:pointer}}
+#vol-slider::-webkit-slider-thumb{{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#fff;cursor:pointer}}
+#spacer{{flex:1}}
+#spinner{{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:48px;height:48px;border-radius:50%;
+  border:3px solid rgba(255,255,255,.15);border-top-color:#7c3aed;
+  animation:spin .8s linear infinite;display:none;
+}}
+@keyframes spin{{to{{transform:translate(-50%,-50%) rotate(360deg)}}}}
+#big-play{{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:64px;height:64px;border-radius:50%;
+  background:rgba(124,58,237,.85);border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .15s,background .15s;
+}}
+#big-play:hover{{transform:translate(-50%,-50%) scale(1.1);background:rgba(124,58,237,1)}}
+#big-play svg{{margin-left:4px}}
 </style>
 </head>
 <body>
-<video id="v" controls autoplay playsinline></video>
+<div id="wrap" class="show-controls">
+  <video id="v" autoplay playsinline></video>
+  <div id="spinner"></div>
+  <button id="big-play">
+    <svg width="24" height="24" fill="white" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+  </button>
+  <div id="controls">
+    <div id="progress-wrap">
+      <div id="progress-buf"></div>
+      <div id="progress-bar"><div id="progress-thumb"></div></div>
+    </div>
+    <div id="bottom">
+      <button class="btn" id="btn-play">
+        <svg id="ico-play" width="20" height="20" fill="white" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg id="ico-pause" width="20" height="20" fill="white" viewBox="0 0 24 24" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <div id="vol-wrap">
+        <button class="btn" id="btn-mute">
+          <svg id="ico-vol" width="18" height="18" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          <svg id="ico-mute" width="18" height="18" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+        </button>
+        <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1">
+      </div>
+      <span id="time">0:00 / 0:00</span>
+      <div id="spacer"></div>
+      <button class="btn" id="btn-fs">
+        <svg id="ico-fs" width="18" height="18" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        <svg id="ico-exit-fs" width="18" height="18" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24" style="display:none"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script>
 (function(){{
   var origin = "{api_origin}";
   var src = origin + "/api/proxy/m3u8?url={encoded}";
   var video = document.getElementById("v");
+  var wrap = document.getElementById("wrap");
+  var spinner = document.getElementById("spinner");
+  var bigPlay = document.getElementById("big-play");
+  var btnPlay = document.getElementById("btn-play");
+  var icoPlay = document.getElementById("ico-play");
+  var icoPause = document.getElementById("ico-pause");
+  var btnMute = document.getElementById("btn-mute");
+  var icoVol = document.getElementById("ico-vol");
+  var icoMute = document.getElementById("ico-mute");
+  var volSlider = document.getElementById("vol-slider");
+  var btnFs = document.getElementById("btn-fs");
+  var icoFs = document.getElementById("ico-fs");
+  var icoExitFs = document.getElementById("ico-exit-fs");
+  var progressWrap = document.getElementById("progress-wrap");
+  var progressBar = document.getElementById("progress-bar");
+  var progressBuf = document.getElementById("progress-buf");
+  var timeEl = document.getElementById("time");
 
+  function fmt(s){{
+    s = Math.floor(s||0);
+    var m = Math.floor(s/60), sec = s%60;
+    return m+":"+(sec<10?"0":"")+sec;
+  }}
+
+  function updatePlay(){{
+    var paused = video.paused;
+    icoPlay.style.display = paused?"block":"none";
+    icoPause.style.display = paused?"none":"block";
+    bigPlay.style.display = paused?"flex":"none";
+  }}
+
+  function updateTime(){{
+    var pct = video.duration ? (video.currentTime/video.duration)*100 : 0;
+    progressBar.style.width = pct+"%";
+    timeEl.textContent = fmt(video.currentTime)+" / "+fmt(video.duration);
+    // buffered
+    if(video.buffered.length){{
+      var bpct = (video.buffered.end(video.buffered.length-1)/video.duration)*100;
+      progressBuf.style.width = bpct+"%";
+    }}
+  }}
+
+  video.addEventListener("play", updatePlay);
+  video.addEventListener("pause", updatePlay);
+  video.addEventListener("timeupdate", updateTime);
+  video.addEventListener("waiting", function(){{ spinner.style.display="block"; }});
+  video.addEventListener("playing", function(){{ spinner.style.display="none"; }});
+  video.addEventListener("canplay", function(){{ spinner.style.display="none"; }});
+
+  // Click video = play/pause
+  video.addEventListener("click", function(){{
+    video.paused ? video.play() : video.pause();
+  }});
+  bigPlay.addEventListener("click", function(){{ video.play(); }});
+  btnPlay.addEventListener("click", function(){{
+    video.paused ? video.play() : video.pause();
+  }});
+
+  // Progress seek
+  function seek(e){{
+    var rect = progressWrap.getBoundingClientRect();
+    var pct = Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    video.currentTime = pct * video.duration;
+  }}
+  var seeking = false;
+  progressWrap.addEventListener("mousedown", function(e){{ seeking=true; seek(e); }});
+  document.addEventListener("mousemove", function(e){{ if(seeking) seek(e); }});
+  document.addEventListener("mouseup", function(){{ seeking=false; }});
+  progressWrap.addEventListener("touchstart", function(e){{ seek(e.touches[0]); }});
+  progressWrap.addEventListener("touchmove", function(e){{ e.preventDefault(); seek(e.touches[0]); }});
+
+  // Volume
+  volSlider.addEventListener("input", function(){{
+    video.volume = parseFloat(volSlider.value);
+    video.muted = video.volume === 0;
+    icoVol.style.display = video.muted?"none":"block";
+    icoMute.style.display = video.muted?"block":"none";
+  }});
+  btnMute.addEventListener("click", function(){{
+    video.muted = !video.muted;
+    icoVol.style.display = video.muted?"none":"block";
+    icoMute.style.display = video.muted?"block":"none";
+    volSlider.value = video.muted ? 0 : video.volume;
+  }});
+
+  // Fullscreen
+  btnFs.addEventListener("click", function(){{
+    if(!document.fullscreenElement){{
+      wrap.requestFullscreen && wrap.requestFullscreen();
+    }} else {{
+      document.exitFullscreen && document.exitFullscreen();
+    }}
+  }});
+  document.addEventListener("fullscreenchange", function(){{
+    var fs = !!document.fullscreenElement;
+    icoFs.style.display = fs?"none":"block";
+    icoExitFs.style.display = fs?"block":"none";
+  }});
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", function(e){{
+    if(e.code==="Space"){{ e.preventDefault(); video.paused?video.play():video.pause(); }}
+    if(e.code==="ArrowRight"){{ video.currentTime+=10; }}
+    if(e.code==="ArrowLeft"){{ video.currentTime-=10; }}
+    if(e.code==="ArrowUp"){{ video.volume=Math.min(1,video.volume+.1); volSlider.value=video.volume; }}
+    if(e.code==="ArrowDown"){{ video.volume=Math.max(0,video.volume-.1); volSlider.value=video.volume; }}
+    if(e.code==="KeyF"){{ btnFs.click(); }}
+    if(e.code==="KeyM"){{ btnMute.click(); }}
+  }});
+
+  // Auto-hide controls
+  var hideTimer;
+  function showControls(){{
+    wrap.classList.add("show-controls");
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function(){{
+      if(!video.paused) wrap.classList.remove("show-controls");
+    }}, 3000);
+  }}
+  wrap.addEventListener("mousemove", showControls);
+  wrap.addEventListener("touchstart", showControls);
+
+  // HLS init
   if (typeof Hls !== "undefined" && Hls.isSupported()) {{
     var hls = new Hls({{
       enableWorker: false,
@@ -185,7 +377,6 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
     }});
     hls.on(Hls.Events.ERROR, function(e, data) {{
       if (data.fatal) {{
-        console.error("HLS fatal error", data.type, data.details);
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {{
           setTimeout(function(){{ hls.startLoad(); }}, 1000);
         }} else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {{
@@ -204,10 +395,10 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
 </body>
 </html>"""
 
-    return HTMLResponse(content=html, headers={
+    return HTMLResponse(content=html, headers={{
         "Content-Security-Policy": "frame-ancestors *",
         "Cache-Control": "no-store",
-    })
+    }})
 
 
 def _rewrite_media_m3u8(content: str, base: str, api_origin: str) -> str:
