@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.6 (2026-04-15)
+
+### Bug Fixes
+
+- Open CORS to allow all origins for streaming
+  ([`82ebc15`](https://github.com/AyoFemi10/ayonime-backend/commit/82ebc15002225b05a7930da57acd8add4832335f))
+
+
 ## v0.1.5 (2026-04-15)
 
 ### Bug Fixes
