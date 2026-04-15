@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.12 (2026-04-15)
+
+### Bug Fixes
+
+- Serve hls.js from same origin to bypass tracking prevention CDN block
+  ([`e32587e`](https://github.com/AyoFemi10/ayonime-backend/commit/e32587e2b82e575a84832dcb68068d91c9aab9fd))
+
+
 ## v0.1.11 (2026-04-15)
 
 ### Bug Fixes
