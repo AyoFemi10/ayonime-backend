@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.11 (2026-04-15)
+
+### Bug Fixes
+
+- Disable hls.js worker to avoid tracking prevention blocking iframe storage
+  ([`209d335`](https://github.com/AyoFemi10/ayonime-backend/commit/209d3359c6beb32a4867a0ac378368ea6bdd28e2))
+
+
 ## v0.1.10 (2026-04-15)
 
 ### Bug Fixes
