@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.13 (2026-04-15)
+
+### Bug Fixes
+
+- Use resp.read() instead of resp.data for urllib3 streaming responses
+  ([`e791111`](https://github.com/AyoFemi10/ayonime-backend/commit/e7911111329adc2208202694590c981791b10f73))
+
+
 ## v0.1.12 (2026-04-15)
 
 ### Bug Fixes
