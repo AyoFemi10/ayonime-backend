@@ -267,7 +267,7 @@ def proxy_m3u8(url: str = Query(...)):
     if not resp:
         raise HTTPException(status_code=502, detail="Failed to fetch m3u8")
 
-    content = resp.data.decode("utf-8")
+    content = resp.read().decode("utf-8")
     base = url.rsplit("/", 1)[0]
 
     # Detect master playlist — contains #EXT-X-STREAM-INF lines
@@ -300,7 +300,7 @@ def proxy_key(url: str = Query(...)):
     if not resp:
         raise HTTPException(status_code=502, detail="Failed to fetch key")
     return Response(
-        content=resp.data,
+        content=resp.read(),
         media_type="application/octet-stream",
         headers={"Access-Control-Allow-Origin": "*"},
     )
@@ -313,7 +313,10 @@ def proxy_seg(url: str = Query(...), key: str = Query(...), idx: int = Query(def
     if not seg_resp:
         raise HTTPException(status_code=502, detail="Failed to fetch segment")
 
-    encrypted = seg_resp.data
+    # _request uses preload_content=False — must read explicitly
+    encrypted = seg_resp.read()
+    if not encrypted:
+        raise HTTPException(status_code=502, detail="Empty segment response")
 
     # No key = unencrypted stream, pass through directly
     if not key:
@@ -326,11 +329,10 @@ def proxy_seg(url: str = Query(...), key: str = Query(...), idx: int = Query(def
     key_resp = api._request(key)
     if not key_resp:
         raise HTTPException(status_code=502, detail="Failed to fetch key")
-    aes_key = key_resp.data[:16]
+    aes_key = key_resp.read()[:16]
 
     # Use explicit IV from manifest if provided, otherwise derive from sequence idx
     if iv:
-        # iv is a hex string like 0x00000000000000000000000000000001
         iv_bytes = bytes.fromhex(iv.lstrip("0x").lstrip("0X").zfill(32))
     else:
         iv_bytes = idx.to_bytes(16, byteorder="big")
