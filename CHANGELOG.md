@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.10 (2026-04-15)
+
+### Bug Fixes
+
+- Cache-bust player URL to prevent stale iframe loads
+  ([`31de790`](https://github.com/AyoFemi10/ayonime-backend/commit/31de7903a2399006dba24625818187c1675f3ff0))
+
+
 ## v0.1.9 (2026-04-15)
 
 ### Bug Fixes
