@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.8 (2026-04-15)
+
+### Bug Fixes
+
+- Pass explicit IV from m3u8 to seg proxy, fix fragParsingError
+  ([`ff9a948`](https://github.com/AyoFemi10/ayonime-backend/commit/ff9a94872a498ef6771f6ad33bf7ba1d249b6869))
+
+
 ## v0.1.7 (2026-04-15)
 
 ### Bug Fixes
