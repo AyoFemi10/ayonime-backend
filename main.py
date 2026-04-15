@@ -395,10 +395,10 @@ video{{width:100%;height:100%;object-fit:contain;display:block;cursor:pointer}}
 </body>
 </html>"""
 
-    return HTMLResponse(content=html, headers={{
+    return HTMLResponse(content=html, headers={
         "Content-Security-Policy": "frame-ancestors *",
         "Cache-Control": "no-store",
-    }})
+    })
 
 
 def _rewrite_media_m3u8(content: str, base: str, api_origin: str) -> str:
