@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.1 (2026-04-15)
+
+### Bug Fixes
+
+- Correct brace escaping in HTMLResponse headers
+  ([`36306b2`](https://github.com/AyoFemi10/ayonime-backend/commit/36306b2292bc213599faa4181f550c2a74d3e5cc))
+
+
 ## v0.3.0 (2026-04-15)
 
 ### Features
