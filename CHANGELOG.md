@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.9 (2026-04-15)
+
+### Bug Fixes
+
+- Handle master playlist, proxy child m3u8 URLs to fix fragParsingError
+  ([`438e5ec`](https://github.com/AyoFemi10/ayonime-backend/commit/438e5ec09ab9a59b5881e1826b4c125ece97853d))
+
+
 ## v0.1.8 (2026-04-15)
 
 ### Bug Fixes
