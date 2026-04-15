@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.0.5 (2026-04-15)
+
+### Bug Fixes
+
+- Decrypt segments server-side for browser streaming
+  ([`4d58cf4`](https://github.com/AyoFemi10/ayonime-backend/commit/4d58cf43cbe73c4a7ae90138d3abaf01f16cf499))
+
+
 ## v0.0.4 (2026-04-15)
 
 ### Bug Fixes
