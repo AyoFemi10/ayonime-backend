@@ -1,31 +1,27 @@
 """
-FastAPI backend that wraps AnimePaheAPI for the web frontend.
-Supports streaming, download job management, and progress tracking.
+AYONIME FastAPI Backend
+- Streaming: fully proxied through our domain, kwik never exposed to browser
+- Downloading: background job with progress tracking
 """
 
-import sys
-import os
-import uuid
-import threading
+import sys, os, uuid, threading, json, re
+import urllib.parse as _up
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel
 from typing import Optional, Dict
 from pathlib import Path
+from Crypto.Cipher import AES
 
 from anime_downloader.api.client import AnimePaheAPI
 from anime_downloader.api.downloader import Downloader
 
-app = FastAPI(title="AYONIME API", version="2.0.0")
+app = FastAPI(title="AYONIME API", version="3.0.0")
 
-ALLOWED_ORIGINS = os.environ.get(
-    "ALLOWED_ORIGINS",
-    "http://localhost:3000"
-).split(",")
-
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -36,12 +32,12 @@ app.add_middleware(
 api = AnimePaheAPI()
 downloader = Downloader(api)
 
-# File-based job store so all 4 workers share state
-import json
-from pathlib import Path
+DOWNLOAD_DIR = Path.home() / "Downloads" / "ayonime"
+DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# ── Shared file-based job store (survives across workers) ────────────────────
 JOBS_FILE = Path("/tmp/ayonime_jobs.json")
-_jobs_lock = threading.Lock()
+_lock = threading.Lock()
 
 def _load_jobs() -> Dict[str, dict]:
     try:
@@ -58,31 +54,25 @@ def _save_jobs(jobs: Dict[str, dict]):
         pass
 
 def _get_job(job_id: str) -> Optional[dict]:
-    with _jobs_lock:
+    with _lock:
         return _load_jobs().get(job_id)
 
 def _set_job(job_id: str, data: dict):
-    with _jobs_lock:
+    with _lock:
         jobs = _load_jobs()
         jobs[job_id] = data
         _save_jobs(jobs)
-DOWNLOAD_DIR = Path.home() / "Downloads" / "ayonime"
-DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ── Search & Browse ──────────────────────────────────────────────────────────
+# ── Browse / Search ──────────────────────────────────────────────────────────
 
 @app.get("/api/search")
 def search(q: str = Query(..., min_length=1)):
-    results = api.search(q)
-    return {"data": results}
-
+    return {"data": api.search(q)}
 
 @app.get("/api/airing")
 def get_airing():
-    data = api.check_for_updates()
-    return {"data": data}
-
+    return {"data": api.check_for_updates()}
 
 @app.get("/api/anime/{slug}/episodes")
 def get_episodes(slug: str, anime_name: str = Query(default="")):
@@ -92,7 +82,7 @@ def get_episodes(slug: str, anime_name: str = Query(default="")):
     return {"data": episodes}
 
 
-# ── Stream ───────────────────────────────────────────────────────────────────
+# ── Streaming ────────────────────────────────────────────────────────────────
 
 @app.get("/api/stream")
 def get_stream(
@@ -101,30 +91,31 @@ def get_stream(
     quality: str = Query(default="best"),
     audio: str = Query(default="jpn"),
 ):
-    stream_url = api.get_stream_url(anime_slug, episode_session, quality, audio)
-    if not stream_url:
+    """
+    Resolve stream → get m3u8 URL → return a proxied player URL.
+    The real m3u8/kwik URL never reaches the browser.
+    """
+    kwik_url = api.get_stream_url(anime_slug, episode_session, quality, audio)
+    if not kwik_url:
         raise HTTPException(status_code=404, detail="Stream not found")
-    playlist_url = api.get_playlist_url(stream_url)
-    if not playlist_url:
+
+    m3u8_url = api.get_playlist_url(kwik_url)
+    if not m3u8_url:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    import urllib.parse as _up
-    # Return a player page URL — fully served from our domain
-    token = _up.quote(playlist_url, safe="")
-    return {"stream_url": stream_url, "playlist_url": f"/api/player?token={token}"}
+
+    token = _up.quote(m3u8_url, safe="")
+    return {"stream_url": f"/api/player?token={token}", "playlist_url": None}
 
 
 @app.get("/api/player")
 def get_player(token: str = Query(...)):
     """
-    Serve a self-contained HLS player page.
-    Fetches the m3u8, proxies + decrypts all segments server-side.
-    Browser only ever talks to apis.ayohost.site.
+    Serve a self-contained HLS player page from our domain.
+    Uses hls.js + our /api/proxy/* endpoints to decrypt and stream.
+    Browser only ever talks to apis.ayohost.site — kwik is invisible.
     """
-    import urllib.parse as _up
-    from fastapi.responses import HTMLResponse
-
-    playlist_url = _up.unquote(token)
-    encoded = _up.quote(playlist_url, safe="")
+    m3u8_url = _up.unquote(token)
+    encoded = _up.quote(m3u8_url, safe="")
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -134,7 +125,7 @@ def get_player(token: str = Query(...)):
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 html,body{{width:100%;height:100%;background:#000;overflow:hidden}}
-video{{width:100%;height:100%;object-fit:contain}}
+video{{width:100%;height:100%;object-fit:contain;display:block}}
 </style>
 </head>
 <body>
@@ -142,16 +133,24 @@ video{{width:100%;height:100%;object-fit:contain}}
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script>
 (function(){{
-  var src = "/api/proxy/playlist?url={encoded}";
+  var src = "/api/proxy/m3u8?url={encoded}";
   var video = document.getElementById("v");
-  if(Hls.isSupported()){{
-    var hls = new Hls({{enableWorker:true}});
+  if (typeof Hls !== "undefined" && Hls.isSupported()) {{
+    var hls = new Hls({{
+      enableWorker: true,
+      xhrSetup: function(xhr) {{ xhr.withCredentials = false; }}
+    }});
     hls.loadSource(src);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, function(){{ video.play(); }});
-  }} else if(video.canPlayType("application/vnd.apple.mpegurl")){{
+    hls.on(Hls.Events.MANIFEST_PARSED, function() {{ video.play().catch(function(){{}}); }});
+    hls.on(Hls.Events.ERROR, function(e, data) {{
+      if (data.fatal) console.error("HLS fatal error", data.type, data.details);
+    }});
+  }} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
     video.src = src;
-    video.play();
+    video.play().catch(function(){{}});
+  }} else {{
+    document.body.innerHTML = "<p style='color:#fff;padding:2rem'>HLS not supported in this browser.</p>";
   }}
 }})();
 </script>
@@ -160,53 +159,52 @@ video{{width:100%;height:100%;object-fit:contain}}
 
     return HTMLResponse(content=html, headers={
         "X-Frame-Options": "SAMEORIGIN",
-        "Content-Security-Policy": "frame-ancestors 'self' https://ayonime.ayohost.site https://ayonime.vercel.app",
+        "Cache-Control": "no-store",
     })
 
 
-@app.get("/api/proxy/playlist")
-def proxy_playlist(url: str = Query(...)):
-    """Fetch m3u8, rewrite key + segment URLs to go through our backend."""
-    import urllib.parse as _up
-    import re as _re
-    from fastapi.responses import Response as FastResponse
-
+@app.get("/api/proxy/m3u8")
+def proxy_m3u8(url: str = Query(...)):
+    """
+    Fetch the real m3u8, rewrite:
+    - #EXT-X-KEY URI → /api/proxy/key
+    - segment lines  → /api/proxy/seg (which decrypts server-side)
+    """
     resp = api._request(url)
     if not resp:
-        raise HTTPException(status_code=502, detail="Failed to fetch playlist")
+        raise HTTPException(status_code=502, detail="Failed to fetch m3u8")
 
     content = resp.data.decode("utf-8")
-    base_url = url.rsplit("/", 1)[0]
+    base = url.rsplit("/", 1)[0]
 
-    # Parse key URL
+    # Extract key URL and media sequence
     key_url = None
-    m = _re.search(r'#EXT-X-KEY:METHOD=AES-128,URI="([^"]+)"', content)
-    if m:
-        key_url = m.group(1)
+    km = re.search(r'#EXT-X-KEY:METHOD=AES-128,URI="([^"]+)"', content)
+    if km:
+        key_url = km.group(1)
 
-    # Parse media sequence
     seq = 0
-    ms = _re.search(r'#EXT-X-MEDIA-SEQUENCE:(\d+)', content)
-    if ms:
-        seq = int(ms.group(1))
+    sm = re.search(r'#EXT-X-MEDIA-SEQUENCE:(\d+)', content)
+    if sm:
+        seq = int(sm.group(1))
 
     lines_out = []
-    seg_index = seq
+    seg_idx = seq
     for line in content.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#EXT-X-KEY") and key_url:
-            proxied_key = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
-            lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{proxied_key}"')
-        elif stripped and not stripped.startswith("#"):
-            seg_url = stripped if stripped.startswith("http") else f"{base_url}/{stripped}"
-            lines_out.append(
-                f"/api/proxy/segment?url={_up.quote(seg_url, safe='')}&key_url={_up.quote(key_url or '', safe='')}&idx={seg_index}"
-            )
-            seg_index += 1
+        s = line.strip()
+        if s.startswith("#EXT-X-KEY") and key_url:
+            pk = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
+            lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{pk}"')
+        elif s and not s.startswith("#"):
+            seg_url = s if s.startswith("http") else f"{base}/{s}"
+            ku = _up.quote(key_url or "", safe="")
+            su = _up.quote(seg_url, safe="")
+            lines_out.append(f"/api/proxy/seg?url={su}&key={ku}&idx={seg_idx}")
+            seg_idx += 1
         else:
             lines_out.append(line)
 
-    return FastResponse(
+    return Response(
         content="\n".join(lines_out),
         media_type="application/vnd.apple.mpegurl",
         headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
@@ -216,142 +214,45 @@ def proxy_playlist(url: str = Query(...)):
 @app.get("/api/proxy/key")
 def proxy_key(url: str = Query(...)):
     """Proxy the AES-128 decryption key."""
-    from fastapi.responses import Response as FastResponse
     resp = api._request(url)
     if not resp:
         raise HTTPException(status_code=502, detail="Failed to fetch key")
-    return FastResponse(
+    return Response(
         content=resp.data,
         media_type="application/octet-stream",
         headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
-@app.get("/api/proxy/segment")
-def proxy_segment(url: str = Query(...), key_url: str = Query(...), idx: int = Query(...)):
-    """Fetch, decrypt and serve a single .ts segment."""
-    from fastapi.responses import Response as FastResponse
-    from Crypto.Cipher import AES as _AES
-
-    key_resp = api._request(key_url)
+@app.get("/api/proxy/seg")
+def proxy_seg(url: str = Query(...), key: str = Query(...), idx: int = Query(...)):
+    """Fetch encrypted .ts segment, decrypt it, serve clean video data."""
+    key_resp = api._request(key)
     if not key_resp:
         raise HTTPException(status_code=502, detail="Failed to fetch key")
-    key = key_resp.data
+    aes_key = key_resp.data
 
     seg_resp = api._request(url)
     if not seg_resp:
         raise HTTPException(status_code=502, detail="Failed to fetch segment")
 
     encrypted = seg_resp.data
-    while len(encrypted) % 16 != 0:
-        encrypted += b"\0"
+    # Pad to AES block boundary
+    remainder = len(encrypted) % 16
+    if remainder:
+        encrypted += b"\0" * (16 - remainder)
 
     iv = idx.to_bytes(16, byteorder="big")
-    cipher = _AES.new(key, _AES.MODE_CBC, iv)
-    decrypted = cipher.decrypt(encrypted)
+    decrypted = AES.new(aes_key, AES.MODE_CBC, iv).decrypt(encrypted)
 
-    return FastResponse(
+    return Response(
         content=decrypted,
         media_type="video/mp2t",
         headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
-@app.get("/api/proxy/playlist")
-def proxy_playlist(
-    url: str = Query(...),
-    key_url: str = Query(...),
-    base: str = Query(...),
-    seq: int = Query(default=0),
-):
-    """Serve a rewritten m3u8 with proxied key + decrypted segment URLs."""
-    import urllib.parse as _up
-    import re as _re
-    from fastapi.responses import Response as FastResponse
-
-    resp = api._request(url)
-    if not resp:
-        raise HTTPException(status_code=502, detail="Failed to fetch playlist")
-
-    content = resp.data.decode("utf-8")
-    lines_out = []
-    seg_index = seq
-
-    for line in content.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#EXT-X-KEY"):
-            # Replace key URI with our proxy
-            proxied_key = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
-            lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{proxied_key}"')
-        elif stripped and not stripped.startswith("#"):
-            seg_url = stripped if stripped.startswith("http") else f"{base}/{stripped}"
-            lines_out.append(
-                f"/api/proxy/segment?url={_up.quote(seg_url, safe='')}&key_url={_up.quote(key_url, safe='')}&idx={seg_index}"
-            )
-            seg_index += 1
-        else:
-            lines_out.append(line)
-
-    return FastResponse(
-        content="\n".join(lines_out),
-        media_type="application/vnd.apple.mpegurl",
-        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
-    )
-
-
-@app.get("/api/proxy/key")
-def proxy_key(url: str = Query(...)):
-    """Proxy the AES-128 decryption key with correct headers."""
-    from fastapi.responses import Response as FastResponse
-    resp = api._request(url)
-    if not resp:
-        raise HTTPException(status_code=502, detail="Failed to fetch key")
-    return FastResponse(
-        content=resp.data,
-        media_type="application/octet-stream",
-        headers={"Access-Control-Allow-Origin": "*"},
-    )
-
-
-@app.get("/api/proxy/segment")
-def proxy_segment(
-    url: str = Query(...),
-    key_url: str = Query(...),
-    idx: int = Query(...),
-):
-    """Fetch, decrypt and serve a single .ts segment."""
-    from fastapi.responses import Response as FastResponse
-    from Crypto.Cipher import AES as _AES
-
-    # Fetch key
-    key_resp = api._request(key_url)
-    if not key_resp:
-        raise HTTPException(status_code=502, detail="Failed to fetch key")
-    key = key_resp.data
-
-    # Fetch encrypted segment
-    seg_resp = api._request(url)
-    if not seg_resp:
-        raise HTTPException(status_code=502, detail="Failed to fetch segment")
-
-    encrypted = seg_resp.data
-    # Pad to AES block size
-    while len(encrypted) % 16 != 0:
-        encrypted += b"\0"
-
-    # IV = segment index as 16-byte big-endian
-    iv = idx.to_bytes(16, byteorder="big")
-    cipher = _AES.new(key, _AES.MODE_CBC, iv)
-    decrypted = cipher.decrypt(encrypted)
-
-    return FastResponse(
-        content=decrypted,
-        media_type="video/mp2t",
-        headers={"Access-Control-Allow-Origin": "*"},
-    )
-
-
-# ── Download ─────────────────────────────────────────────────────────────────
+# ── Download jobs ────────────────────────────────────────────────────────────
 
 class DownloadRequest(BaseModel):
     anime_slug: str
@@ -363,99 +264,68 @@ class DownloadRequest(BaseModel):
 
 
 def _run_download(job_id: str, req: DownloadRequest):
-    """Background thread: resolve stream → download segments → compile mp4."""
     job = _get_job(job_id)
     try:
-        job["status"] = "resolving"
-        _set_job(job_id, job)
+        job["status"] = "resolving"; _set_job(job_id, job)
 
-        stream_url = api.get_stream_url(req.anime_slug, req.episode_session, req.quality, req.audio)
-        if not stream_url:
-            job["status"] = "failed"
-            job["error"] = "Could not resolve stream URL"
-            _set_job(job_id, job)
-            return
+        kwik_url = api.get_stream_url(req.anime_slug, req.episode_session, req.quality, req.audio)
+        if not kwik_url:
+            job["status"] = "failed"; job["error"] = "Could not resolve stream URL"
+            _set_job(job_id, job); return
 
-        playlist_url = api.get_playlist_url(stream_url)
-        if not playlist_url:
-            job["status"] = "failed"
-            job["error"] = "Could not resolve playlist URL"
-            _set_job(job_id, job)
-            return
+        m3u8_url = api.get_playlist_url(kwik_url)
+        if not m3u8_url:
+            job["status"] = "failed"; job["error"] = "Could not resolve playlist URL"
+            _set_job(job_id, job); return
 
-        safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in req.anime_title)
-        ep_dir = DOWNLOAD_DIR / safe_title / f"ep{req.episode_number}"
+        safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in req.anime_title)
+        ep_dir = DOWNLOAD_DIR / safe / f"ep{req.episode_number}"
         ep_dir.mkdir(parents=True, exist_ok=True)
-        output_mp4 = DOWNLOAD_DIR / safe_title / f"{safe_title}_ep{req.episode_number}.mp4"
+        out_mp4 = DOWNLOAD_DIR / safe / f"{safe}_ep{req.episode_number}.mp4"
 
-        if output_mp4.exists():
-            job["status"] = "done"
-            job["progress"] = 100
-            job["file_path"] = str(output_mp4)
-            _set_job(job_id, job)
-            return
+        if out_mp4.exists():
+            job["status"] = "done"; job["progress"] = 100; job["file_path"] = str(out_mp4)
+            _set_job(job_id, job); return
 
-        job["status"] = "downloading"
-        _set_job(job_id, job)
+        job["status"] = "downloading"; _set_job(job_id, job)
 
-        playlist_path = downloader.fetch_playlist(playlist_url, str(ep_dir))
-        if not playlist_path:
-            job["status"] = "failed"
-            job["error"] = "Failed to fetch playlist"
-            _set_job(job_id, job)
-            return
+        pl_path = downloader.fetch_playlist(m3u8_url, str(ep_dir))
+        if not pl_path:
+            job["status"] = "failed"; job["error"] = "Failed to fetch playlist"
+            _set_job(job_id, job); return
 
-        ok = downloader.download_from_playlist_cli(playlist_path, num_threads=8)
-        if not ok:
-            job["status"] = "failed"
-            job["error"] = "Segment download failed"
-            _set_job(job_id, job)
-            return
+        if not downloader.download_from_playlist_cli(pl_path, num_threads=8):
+            job["status"] = "failed"; job["error"] = "Segment download failed"
+            _set_job(job_id, job); return
 
-        job["status"] = "compiling"
-        _set_job(job_id, job)
+        job["status"] = "compiling"; _set_job(job_id, job)
 
         def on_progress(pct: int):
-            j = _get_job(job_id)
-            j["progress"] = pct
-            _set_job(job_id, j)
+            j = _get_job(job_id); j["progress"] = pct; _set_job(job_id, j)
 
-        compiled = downloader.compile_video(str(ep_dir), str(output_mp4), on_progress)
-        if not compiled:
-            job["status"] = "failed"
-            job["error"] = "FFmpeg compilation failed"
-            _set_job(job_id, job)
-            return
+        if not downloader.compile_video(str(ep_dir), str(out_mp4), on_progress):
+            job["status"] = "failed"; job["error"] = "FFmpeg compilation failed"
+            _set_job(job_id, job); return
 
-        job["status"] = "done"
-        job["progress"] = 100
-        job["file_path"] = str(output_mp4)
+        job["status"] = "done"; job["progress"] = 100; job["file_path"] = str(out_mp4)
         _set_job(job_id, job)
 
     except Exception as e:
         job = _get_job(job_id) or {}
-        job["status"] = "failed"
-        job["error"] = str(e)
+        job["status"] = "failed"; job["error"] = str(e)
         _set_job(job_id, job)
 
 
 @app.post("/api/download")
 def start_download(req: DownloadRequest, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
-    job = {
-        "job_id": job_id,
-        "status": "queued",
-        "progress": 0,
-        "file_path": None,
-        "error": None,
-        "anime_title": req.anime_title,
-        "episode_number": req.episode_number,
-    }
-    _set_job(job_id, job)
-    t = threading.Thread(target=_run_download, args=(job_id, req), daemon=True)
-    t.start()
+    _set_job(job_id, {
+        "job_id": job_id, "status": "queued", "progress": 0,
+        "file_path": None, "error": None,
+        "anime_title": req.anime_title, "episode_number": req.episode_number,
+    })
+    threading.Thread(target=_run_download, args=(job_id, req), daemon=True).start()
     return {"job_id": job_id}
-
 
 @app.get("/api/download/{job_id}/status")
 def download_status(job_id: str):
@@ -463,7 +333,6 @@ def download_status(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
-
 
 @app.get("/api/download/{job_id}/file")
 def download_file(job_id: str):
@@ -477,11 +346,9 @@ def download_file(job_id: str):
         raise HTTPException(status_code=404, detail="File missing on disk")
     return FileResponse(path=str(path), media_type="video/mp4", filename=path.name)
 
-
 @app.get("/api/downloads")
 def list_downloads():
     return {"jobs": list(_load_jobs().values())}
-
 
 @app.get("/health")
 def health():
