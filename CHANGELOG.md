@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.0.4 (2026-04-15)
+
+### Bug Fixes
+
+- Proxy m3u8 and segments through backend to fix streaming
+  ([`7668d84`](https://github.com/AyoFemi10/ayonime-backend/commit/7668d842195429fadd3e33fdcaa1489c5e571053))
+
+
 ## v0.0.3 (2026-04-15)
 
 ### Bug Fixes
