@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.3 (2026-04-15)
+
+### Bug Fixes
+
+- Clean rewrite - full server-side decrypt streaming pipeline
+  ([`6c3087f`](https://github.com/AyoFemi10/ayonime-backend/commit/6c3087f9790412a81b3570f19e9c59fa7502a730))
+
+
 ## v0.1.2 (2026-04-15)
 
 ### Bug Fixes
