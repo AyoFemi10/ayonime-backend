@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.0 (2026-04-15)
+
+### Features
+
+- Custom video player UI with progress bar, volume, fullscreen, keyboard shortcuts
+  ([`70681d5`](https://github.com/AyoFemi10/ayonime-backend/commit/70681d57ae0901c395926941ef7de9922797f26b))
+
+
 ## v0.2.0 (2026-04-15)
 
 ### Features
