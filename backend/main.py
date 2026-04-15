@@ -107,7 +107,54 @@ def get_stream(
     playlist_url = api.get_playlist_url(stream_url)
     if not playlist_url:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    return {"stream_url": stream_url, "playlist_url": playlist_url}
+    # Return proxied URL so browser requests go through our backend
+    # which adds the correct Referer/headers
+    proxied = f"/api/proxy/playlist?url={playlist_url}&referer={stream_url}"
+    return {"stream_url": stream_url, "playlist_url": proxied}
+
+
+@app.get("/api/proxy/playlist")
+def proxy_playlist(url: str = Query(...), referer: str = Query(default="")):
+    """Proxy the m3u8 playlist, rewriting segment URLs to also go through proxy."""
+    from fastapi.responses import Response as FastResponse
+    headers = {
+        "Referer": referer or "https://kwik.cx/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Origin": "https://kwik.cx",
+    }
+    resp = api._request(url)
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch playlist")
+    content = resp.data.decode("utf-8")
+
+    # Rewrite segment URLs to go through /api/proxy/segment
+    base_url = url.rsplit("/", 1)[0]
+    lines = []
+    for line in content.splitlines():
+        if line and not line.startswith("#"):
+            seg_url = line if line.startswith("http") else f"{base_url}/{line}"
+            line = f"/api/proxy/segment?url={seg_url}&referer={referer}"
+        lines.append(line)
+
+    return FastResponse(
+        content="\n".join(lines),
+        media_type="application/vnd.apple.mpegurl",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
+@app.get("/api/proxy/segment")
+def proxy_segment(url: str = Query(...), referer: str = Query(default="")):
+    """Proxy a single .ts video segment with correct headers."""
+    from fastapi.responses import Response as FastResponse
+    resp = api._request(url)
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch segment")
+    return FastResponse(
+        content=resp.data,
+        media_type="video/mp2t",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 
 # ── Download ─────────────────────────────────────────────────────────────────
