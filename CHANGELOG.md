@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.7 (2026-04-15)
+
+### Bug Fixes
+
+- Use absolute URLs in m3u8 proxy so hls.js resolves segments correctly
+  ([`0219a22`](https://github.com/AyoFemi10/ayonime-backend/commit/0219a2297a6ebcb22e5b5b9c3e3c5c3080cdd022))
+
+
 ## v0.1.6 (2026-04-15)
 
 ### Bug Fixes
