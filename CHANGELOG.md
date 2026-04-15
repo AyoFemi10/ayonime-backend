@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.2.0 (2026-04-15)
+
+### Features
+
+- Add /api/recently-added and /api/top-anime endpoints
+  ([`29a4391`](https://github.com/AyoFemi10/ayonime-backend/commit/29a4391abd35141b5371f6e220caa822d915e755))
+
+
 ## v0.1.15 (2026-04-15)
 
 ### Bug Fixes
