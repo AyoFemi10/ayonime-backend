@@ -139,9 +139,9 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
   var video = document.getElementById("v");
   if (typeof Hls !== "undefined" && Hls.isSupported()) {{
     var hls = new Hls({{
-      enableWorker: true,
+      enableWorker: false,
+      lowLatencyMode: false,
       xhrSetup: function(xhr, url) {{
-        // Make relative proxy URLs absolute
         if (url.startsWith("/api/")) {{
           xhr.open("GET", origin + url, true);
         }}
