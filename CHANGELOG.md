@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.2 (2026-04-15)
+
+### Bug Fixes
+
+- Self-contained hls player page, decrypt segments server-side
+  ([`fa357c6`](https://github.com/AyoFemi10/ayonime-backend/commit/fa357c6c742493c64aea749faf02ef10ae40a999))
+
+
 ## v0.1.1 (2026-04-15)
 
 ### Bug Fixes
