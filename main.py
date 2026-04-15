@@ -138,54 +138,34 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
   var src = origin + "/api/proxy/m3u8?url={encoded}";
   var video = document.getElementById("v");
 
-  function startHls(Hls) {{
+  if (typeof Hls !== "undefined" && Hls.isSupported()) {{
     var hls = new Hls({{
       enableWorker: false,
       lowLatencyMode: false,
-      xhrSetup: function(xhr, url) {{
-        if (url.startsWith("/api/")) {{
-          xhr.open("GET", origin + url, true);
-        }}
-        xhr.withCredentials = false;
-      }}
+      progressive: false,
+      testBandwidth: false,
+      abrEwmaDefaultEstimate: 500000,
     }});
     hls.loadSource(src);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, function() {{ video.play().catch(function(){{}}); }});
+    hls.on(Hls.Events.MANIFEST_PARSED, function() {{
+      video.play().catch(function(){{}});
+    }});
     hls.on(Hls.Events.ERROR, function(e, data) {{
       if (data.fatal) {{
         console.error("HLS fatal error", data.type, data.details);
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {{
-          hls.startLoad();
+          setTimeout(function(){{ hls.startLoad(); }}, 1000);
         }} else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {{
           hls.recoverMediaError();
         }}
       }}
     }});
-  }}
-
-  function loadHlsFromOrigin() {{
-    var s = document.createElement("script");
-    s.src = origin + "/api/hlsjs";
-    s.onload = function() {{
-      if (typeof Hls !== "undefined" && Hls.isSupported()) {{
-        startHls(Hls);
-      }} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
-        video.src = src; video.play().catch(function(){{}});
-      }}
-    }};
-    s.onerror = function() {{
-      document.body.innerHTML = "<p style='color:#fff;padding:2rem'>Failed to load player.</p>";
-    }};
-    document.head.appendChild(s);
-  }}
-
-  if (typeof Hls !== "undefined" && Hls.isSupported()) {{
-    startHls(Hls);
   }} else if (video.canPlayType("application/vnd.apple.mpegurl")) {{
-    video.src = src; video.play().catch(function(){{}});
+    video.src = src;
+    video.play().catch(function(){{}});
   }} else {{
-    loadHlsFromOrigin();
+    document.body.innerHTML = "<p style='color:#fff;padding:2rem'>HLS not supported.</p>";
   }}
 }})();
 </script>
@@ -221,14 +201,9 @@ def _rewrite_media_m3u8(content: str, base: str, api_origin: str) -> str:
     for line in content.splitlines():
         s = line.strip()
         if s.startswith("#EXT-X-KEY"):
-            if key_url:
-                pk = f"{api_origin}/api/proxy/key?url={_up.quote(key_url, safe='')}"
-                if explicit_iv:
-                    lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{pk}",IV={explicit_iv}')
-                else:
-                    lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{pk}"')
-            else:
-                lines_out.append(line)
+            # Skip — decryption is done server-side in /api/proxy/seg
+            # so hls.js must NOT try to decrypt again
+            pass
         elif s and not s.startswith("#"):
             seg_url = s if s.startswith("http") else f"{base}/{s}"
             ku = _up.quote(key_url or "", safe="")
