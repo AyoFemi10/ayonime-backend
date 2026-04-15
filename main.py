@@ -178,24 +178,11 @@ video{{width:100%;height:100%;object-fit:contain;display:block}}
     })
 
 
-@app.get("/api/proxy/m3u8")
-def proxy_m3u8(url: str = Query(...)):
-    """
-    Fetch the real m3u8, rewrite:
-    - #EXT-X-KEY URI → absolute /api/proxy/key (keep IV= intact for hls.js)
-    - segment lines  → absolute /api/proxy/seg (server-side decrypt)
-    """
-    api_origin = os.environ.get("API_ORIGIN", "https://apis.ayohost.site")
-    resp = api._request(url)
-    if not resp:
-        raise HTTPException(status_code=502, detail="Failed to fetch m3u8")
-
-    content = resp.data.decode("utf-8")
-    base = url.rsplit("/", 1)[0]
-
-    # Extract key URL and explicit IV from the KEY line
+def _rewrite_media_m3u8(content: str, base: str, api_origin: str) -> str:
+    """Rewrite a media playlist: proxy key URI and all segment URLs."""
     key_url = None
     explicit_iv = None
+
     km = re.search(r'#EXT-X-KEY:[^\n]*URI="([^"]+)"', content)
     if km:
         raw_key = km.group(1)
@@ -204,7 +191,6 @@ def proxy_m3u8(url: str = Query(...)):
     if ivm:
         explicit_iv = ivm.group(1)
 
-    # Extract starting media sequence
     seq = 0
     sm = re.search(r'#EXT-X-MEDIA-SEQUENCE:(\d+)', content)
     if sm:
@@ -217,7 +203,6 @@ def proxy_m3u8(url: str = Query(...)):
         if s.startswith("#EXT-X-KEY"):
             if key_url:
                 pk = f"{api_origin}/api/proxy/key?url={_up.quote(key_url, safe='')}"
-                # Preserve explicit IV if present so hls.js / our proxy use the right one
                 if explicit_iv:
                     lines_out.append(f'#EXT-X-KEY:METHOD=AES-128,URI="{pk}",IV={explicit_iv}')
                 else:
@@ -228,15 +213,47 @@ def proxy_m3u8(url: str = Query(...)):
             seg_url = s if s.startswith("http") else f"{base}/{s}"
             ku = _up.quote(key_url or "", safe="")
             su = _up.quote(seg_url, safe="")
-            # Pass explicit IV to seg proxy; fall back to sequence-number IV
             iv_param = f"&iv={_up.quote(explicit_iv, safe='')}" if explicit_iv else f"&idx={seg_idx}"
             lines_out.append(f"{api_origin}/api/proxy/seg?url={su}&key={ku}{iv_param}")
             seg_idx += 1
         else:
             lines_out.append(line)
 
+    return "\n".join(lines_out)
+
+
+@app.get("/api/proxy/m3u8")
+def proxy_m3u8(url: str = Query(...)):
+    """
+    Fetch the real m3u8 and rewrite all URLs through our proxy.
+    Handles both master playlists (with child m3u8 links) and media playlists.
+    """
+    api_origin = os.environ.get("API_ORIGIN", "https://apis.ayohost.site")
+    resp = api._request(url)
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch m3u8")
+
+    content = resp.data.decode("utf-8")
+    base = url.rsplit("/", 1)[0]
+
+    # Detect master playlist — contains #EXT-X-STREAM-INF lines
+    if "#EXT-X-STREAM-INF" in content:
+        # Rewrite child playlist URLs to go through our proxy
+        lines_out = []
+        for line in content.splitlines():
+            s = line.strip()
+            if s and not s.startswith("#"):
+                child_url = s if s.startswith("http") else f"{base}/{s}"
+                proxied = f"{api_origin}/api/proxy/m3u8?url={_up.quote(child_url, safe='')}"
+                lines_out.append(proxied)
+            else:
+                lines_out.append(line)
+        rewritten = "\n".join(lines_out)
+    else:
+        rewritten = _rewrite_media_m3u8(content, base, api_origin)
+
     return Response(
-        content="\n".join(lines_out),
+        content=rewritten,
         media_type="application/vnd.apple.mpegurl",
         headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
     )
