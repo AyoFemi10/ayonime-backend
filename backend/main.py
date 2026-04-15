@@ -104,64 +104,8 @@ def get_stream(
     stream_url = api.get_stream_url(anime_slug, episode_session, quality, audio)
     if not stream_url:
         raise HTTPException(status_code=404, detail="Stream not found")
-    playlist_url = api.get_playlist_url(stream_url)
-    if not playlist_url:
-        raise HTTPException(status_code=404, detail="Playlist not found")
-
-    # Fetch and parse the real playlist to get key + segments
-    resp = api._request(playlist_url)
-    if not resp:
-        raise HTTPException(status_code=502, detail="Failed to fetch playlist")
-
-    content = resp.data.decode("utf-8")
-    base_url = playlist_url.rsplit("/", 1)[0]
-
-    # Parse key URL and segments
-    import re as _re
-    key_url = None
-    segments = []
-    media_sequence = 0
-
-    for line in content.splitlines():
-        line = line.strip()
-        if line.startswith("#EXT-X-MEDIA-SEQUENCE"):
-            try:
-                media_sequence = int(line.split(":")[1])
-            except Exception:
-                pass
-        elif line.startswith("#EXT-X-KEY"):
-            m = _re.search('URI="([^"]+)"', line)
-            if m:
-                key_url = m.group(1)
-        elif line and not line.startswith("#"):
-            seg_url = line if line.startswith("http") else f"{base_url}/{line}"
-            segments.append(seg_url)
-
-    if not key_url or not segments:
-        raise HTTPException(status_code=502, detail="Could not parse playlist")
-
-    # Return a proxied m3u8 that points segments + key through our backend
-    # The key endpoint will serve the real key, segment endpoint decrypts on the fly
-    import urllib.parse as _up
-    proxied_key = f"/api/proxy/key?url={_up.quote(key_url, safe='')}"
-    proxied_lines = [
-        "#EXTM3U",
-        "#EXT-X-VERSION:3",
-        f"#EXT-X-MEDIA-SEQUENCE:{media_sequence}",
-        f'#EXT-X-KEY:METHOD=AES-128,URI="{proxied_key}"',
-        "#EXT-X-TARGETDURATION:10",
-    ]
-    for i, seg_url in enumerate(segments):
-        proxied_lines.append("#EXTINF:10.0,")
-        idx = media_sequence + i
-        proxied_lines.append(
-            f"/api/proxy/segment?url={_up.quote(seg_url, safe='')}&key_url={_up.quote(key_url, safe='')}&idx={idx}"
-        )
-    proxied_lines.append("#EXT-X-ENDLIST")
-
-    from fastapi.responses import Response as FastResponse
-    proxied_m3u8 = "\n".join(proxied_lines)
-    return {"stream_url": stream_url, "playlist_url": f"/api/proxy/playlist?url={_up.quote(playlist_url, safe='')}&key_url={_up.quote(key_url, safe='')}&base={_up.quote(base_url, safe='')}&seq={media_sequence}"}
+    # Return the kwik embed URL directly — frontend will iframe it
+    return {"stream_url": stream_url, "playlist_url": None}
 
 
 @app.get("/api/proxy/playlist")
