@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.4 (2026-04-15)
+
+### Bug Fixes
+
+- Allow iframe from any origin for cross-subdomain embed
+  ([`502798e`](https://github.com/AyoFemi10/ayonime-backend/commit/502798e36158c22dd5bf789d2fec602b5a9f835a))
+
+
 ## v0.1.3 (2026-04-15)
 
 ### Bug Fixes
