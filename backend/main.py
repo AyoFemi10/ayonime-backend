@@ -113,56 +113,92 @@ def get_stream(
 @app.get("/api/player")
 def get_player(token: str = Query(...)):
     """
-    Fetch the kwik player page server-side, extract the video player HTML,
-    and serve it from our own domain. The real kwik URL never reaches the browser.
+    Fetch the kwik player page server-side, rewrite all asset URLs to proxy
+    through our backend. kwik.cx never appears in the browser.
     """
     import urllib.parse as _up
     from fastapi.responses import HTMLResponse
+    from bs4 import BeautifulSoup
 
     kwik_url = _up.unquote(token)
+    kwik_origin = "https://kwik.cx"
 
-    # Fetch the kwik embed page with correct headers
     resp = api._request(kwik_url)
     if not resp:
         return HTMLResponse("<p style='color:white;font-family:sans-serif;padding:2rem'>Failed to load player.</p>", status_code=502)
 
     html = resp.data.decode("utf-8", errors="replace")
-
-    # Extract just the <script> tags and video source — strip kwik branding
-    from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
 
-    # Get all scripts
-    scripts = []
-    for s in soup.find_all("script"):
-        scripts.append(str(s))
+    # Rewrite all src/href attributes — relative → proxied absolute
+    for tag in soup.find_all(["script", "link", "img"]):
+        for attr in ("src", "href"):
+            val = tag.get(attr)
+            if not val or val.startswith("data:") or val.startswith("#"):
+                continue
+            if val.startswith("//"):
+                val = "https:" + val
+            elif val.startswith("/"):
+                val = kwik_origin + val
+            elif not val.startswith("http"):
+                val = kwik_origin + "/" + val
+            # Proxy through our backend
+            tag[attr] = f"/api/asset?url={_up.quote(val, safe='')}"
 
-    # Build a clean player page that looks like ours
-    player_html = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  * {{ margin:0; padding:0; box-sizing:border-box; }}
-  html, body {{ width:100%; height:100%; background:#000; overflow:hidden; }}
-  video {{ width:100%; height:100%; object-fit:contain; }}
-  #player-wrap {{ width:100%; height:100%; position:relative; }}
-</style>
-</head>
-<body>
-<div id="player-wrap">
-{"".join(scripts)}
-</div>
-</body>
-</html>"""
+    # Rewrite inline script src references (eval'd code uses relative paths)
+    raw = str(soup)
+    # Replace any remaining kwik.cx references in inline scripts
+    raw = raw.replace("kwik.cx", "apis.ayohost.site/api/asset?url=https%3A%2F%2Fkwik.cx")
+
+    # Inject base tag so relative XHR calls resolve correctly
+    base_inject = f'<base href="{kwik_origin}/">'
+    raw = raw.replace("<head>", f"<head>{base_inject}", 1)
+
+    # Add styles to fill the iframe
+    style_inject = "<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;background:#000;overflow:hidden}video{width:100%!important;height:100%!important;object-fit:contain}</style>"
+    raw = raw.replace("</head>", f"{style_inject}</head>", 1)
 
     return HTMLResponse(
-        content=player_html,
+        content=raw,
         headers={
-            "X-Frame-Options": "SAMEORIGIN",
             "Content-Security-Policy": "frame-ancestors 'self' https://ayonime.ayohost.site https://ayonime.vercel.app",
+            "X-Frame-Options": "SAMEORIGIN",
         }
+    )
+
+
+@app.get("/api/asset")
+def proxy_asset(url: str = Query(...)):
+    """Proxy any kwik.cx static asset (js, css, etc.) through our backend."""
+    import urllib.parse as _up
+    from fastapi.responses import Response as FastResponse
+    import mimetypes
+
+    real_url = _up.unquote(url)
+    resp = api._request(real_url)
+    if not resp:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # Guess content type from URL
+    mime, _ = mimetypes.guess_type(real_url.split("?")[0])
+    mime = mime or "application/octet-stream"
+
+    content = resp.data
+    # If JS, rewrite any internal kwik references
+    if "javascript" in mime or real_url.endswith(".js"):
+        try:
+            text = content.decode("utf-8", errors="replace")
+            text = text.replace(
+                '"/app/', f'"/api/asset?url={_up.quote("https://kwik.cx/app/", safe="")}'
+            )
+            content = text.encode("utf-8")
+        except Exception:
+            pass
+
+    return FastResponse(
+        content=content,
+        media_type=mime,
+        headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
