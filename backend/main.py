@@ -104,8 +104,66 @@ def get_stream(
     stream_url = api.get_stream_url(anime_slug, episode_session, quality, audio)
     if not stream_url:
         raise HTTPException(status_code=404, detail="Stream not found")
-    # Return the kwik embed URL directly — frontend will iframe it
-    return {"stream_url": stream_url, "playlist_url": None}
+    # Return a proxied player URL — kwik URL never exposed to browser
+    import urllib.parse as _up
+    proxied = f"/api/player?token={_up.quote(stream_url, safe='')}"
+    return {"stream_url": proxied, "playlist_url": None}
+
+
+@app.get("/api/player")
+def get_player(token: str = Query(...)):
+    """
+    Fetch the kwik player page server-side, extract the video player HTML,
+    and serve it from our own domain. The real kwik URL never reaches the browser.
+    """
+    import urllib.parse as _up
+    from fastapi.responses import HTMLResponse
+
+    kwik_url = _up.unquote(token)
+
+    # Fetch the kwik embed page with correct headers
+    resp = api._request(kwik_url)
+    if not resp:
+        return HTMLResponse("<p style='color:white;font-family:sans-serif;padding:2rem'>Failed to load player.</p>", status_code=502)
+
+    html = resp.data.decode("utf-8", errors="replace")
+
+    # Extract just the <script> tags and video source — strip kwik branding
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Get all scripts
+    scripts = []
+    for s in soup.find_all("script"):
+        scripts.append(str(s))
+
+    # Build a clean player page that looks like ours
+    player_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  html, body {{ width:100%; height:100%; background:#000; overflow:hidden; }}
+  video {{ width:100%; height:100%; object-fit:contain; }}
+  #player-wrap {{ width:100%; height:100%; position:relative; }}
+</style>
+</head>
+<body>
+<div id="player-wrap">
+{"".join(scripts)}
+</div>
+</body>
+</html>"""
+
+    return HTMLResponse(
+        content=player_html,
+        headers={
+            "X-Frame-Options": "SAMEORIGIN",
+            "Content-Security-Policy": "frame-ancestors 'self' https://ayonime.ayohost.site https://ayonime.vercel.app",
+        }
+    )
 
 
 @app.get("/api/proxy/playlist")
