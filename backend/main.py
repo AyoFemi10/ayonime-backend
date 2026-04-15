@@ -36,8 +36,36 @@ app.add_middleware(
 api = AnimePaheAPI()
 downloader = Downloader(api)
 
-# In-memory download job store  { job_id: { status, progress, file_path, error } }
-download_jobs: Dict[str, dict] = {}
+# File-based job store so all 4 workers share state
+import json
+from pathlib import Path
+
+JOBS_FILE = Path("/tmp/ayonime_jobs.json")
+_jobs_lock = threading.Lock()
+
+def _load_jobs() -> Dict[str, dict]:
+    try:
+        if JOBS_FILE.exists():
+            return json.loads(JOBS_FILE.read_text())
+    except Exception:
+        pass
+    return {}
+
+def _save_jobs(jobs: Dict[str, dict]):
+    try:
+        JOBS_FILE.write_text(json.dumps(jobs))
+    except Exception:
+        pass
+
+def _get_job(job_id: str) -> Optional[dict]:
+    with _jobs_lock:
+        return _load_jobs().get(job_id)
+
+def _set_job(job_id: str, data: dict):
+    with _jobs_lock:
+        jobs = _load_jobs()
+        jobs[job_id] = data
+        _save_jobs(jobs)
 DOWNLOAD_DIR = Path.home() / "Downloads" / "ayonime"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -95,23 +123,25 @@ class DownloadRequest(BaseModel):
 
 def _run_download(job_id: str, req: DownloadRequest):
     """Background thread: resolve stream → download segments → compile mp4."""
-    job = download_jobs[job_id]
+    job = _get_job(job_id)
     try:
         job["status"] = "resolving"
+        _set_job(job_id, job)
 
         stream_url = api.get_stream_url(req.anime_slug, req.episode_session, req.quality, req.audio)
         if not stream_url:
             job["status"] = "failed"
             job["error"] = "Could not resolve stream URL"
+            _set_job(job_id, job)
             return
 
         playlist_url = api.get_playlist_url(stream_url)
         if not playlist_url:
             job["status"] = "failed"
             job["error"] = "Could not resolve playlist URL"
+            _set_job(job_id, job)
             return
 
-        # Safe filename
         safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in req.anime_title)
         ep_dir = DOWNLOAD_DIR / safe_title / f"ep{req.episode_number}"
         ep_dir.mkdir(parents=True, exist_ok=True)
@@ -121,49 +151,57 @@ def _run_download(job_id: str, req: DownloadRequest):
             job["status"] = "done"
             job["progress"] = 100
             job["file_path"] = str(output_mp4)
+            _set_job(job_id, job)
             return
 
         job["status"] = "downloading"
+        _set_job(job_id, job)
 
-        # Fetch playlist file
         playlist_path = downloader.fetch_playlist(playlist_url, str(ep_dir))
         if not playlist_path:
             job["status"] = "failed"
             job["error"] = "Failed to fetch playlist"
+            _set_job(job_id, job)
             return
 
-        # Download segments — 8 threads on a 4-core machine
         ok = downloader.download_from_playlist_cli(playlist_path, num_threads=8)
         if not ok:
             job["status"] = "failed"
             job["error"] = "Segment download failed"
+            _set_job(job_id, job)
             return
 
         job["status"] = "compiling"
+        _set_job(job_id, job)
 
         def on_progress(pct: int):
-            job["progress"] = pct
+            j = _get_job(job_id)
+            j["progress"] = pct
+            _set_job(job_id, j)
 
         compiled = downloader.compile_video(str(ep_dir), str(output_mp4), on_progress)
         if not compiled:
             job["status"] = "failed"
             job["error"] = "FFmpeg compilation failed"
+            _set_job(job_id, job)
             return
 
         job["status"] = "done"
         job["progress"] = 100
         job["file_path"] = str(output_mp4)
+        _set_job(job_id, job)
 
     except Exception as e:
+        job = _get_job(job_id) or {}
         job["status"] = "failed"
         job["error"] = str(e)
+        _set_job(job_id, job)
 
 
 @app.post("/api/download")
 def start_download(req: DownloadRequest, background_tasks: BackgroundTasks):
-    """Kick off a background download job, returns a job_id to poll."""
     job_id = str(uuid.uuid4())
-    download_jobs[job_id] = {
+    job = {
         "job_id": job_id,
         "status": "queued",
         "progress": 0,
@@ -172,6 +210,7 @@ def start_download(req: DownloadRequest, background_tasks: BackgroundTasks):
         "anime_title": req.anime_title,
         "episode_number": req.episode_number,
     }
+    _set_job(job_id, job)
     t = threading.Thread(target=_run_download, args=(job_id, req), daemon=True)
     t.start()
     return {"job_id": job_id}
@@ -179,8 +218,7 @@ def start_download(req: DownloadRequest, background_tasks: BackgroundTasks):
 
 @app.get("/api/download/{job_id}/status")
 def download_status(job_id: str):
-    """Poll download job status."""
-    job = download_jobs.get(job_id)
+    job = _get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
@@ -188,8 +226,7 @@ def download_status(job_id: str):
 
 @app.get("/api/download/{job_id}/file")
 def download_file(job_id: str):
-    """Serve the completed mp4 file."""
-    job = download_jobs.get(job_id)
+    job = _get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job["status"] != "done" or not job["file_path"]:
@@ -197,17 +234,12 @@ def download_file(job_id: str):
     path = Path(job["file_path"])
     if not path.exists():
         raise HTTPException(status_code=404, detail="File missing on disk")
-    return FileResponse(
-        path=str(path),
-        media_type="video/mp4",
-        filename=path.name,
-    )
+    return FileResponse(path=str(path), media_type="video/mp4", filename=path.name)
 
 
 @app.get("/api/downloads")
 def list_downloads():
-    """List all download jobs."""
-    return {"jobs": list(download_jobs.values())}
+    return {"jobs": list(_load_jobs().values())}
 
 
 @app.get("/health")
