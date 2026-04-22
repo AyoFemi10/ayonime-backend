@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.5.0 (2026-04-22)
+
+### Features
+
+- Add image proxy endpoint
+  ([`e294f68`](https://github.com/AyoFemi10/ayonime-backend/commit/e294f68f00c85426c6909ca919d2e1ed282198c2))
+
+
 ## v0.4.0 (2026-04-22)
 
 ### Features
