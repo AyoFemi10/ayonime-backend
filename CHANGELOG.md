@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.4.0 (2026-04-22)
+
+### Features
+
+- Add /api/stream/qualities endpoint
+  ([`b9684fe`](https://github.com/AyoFemi10/ayonime-backend/commit/b9684fe1520579505238f07259ffd8bfa913cfdf))
+
+
 ## v0.3.1 (2026-04-15)
 
 ### Bug Fixes
