@@ -70,6 +70,18 @@ def _set_job(job_id: str, data: dict):
 def search(q: str = Query(..., min_length=1)):
     return {"data": api.search(q)}
 
+@app.get("/api/proxy/img")
+def proxy_image(url: str = Query(...)):
+    """Proxy anime poster images to bypass hotlink protection."""
+    resp = api._request(url)
+    if not resp:
+        raise HTTPException(status_code=404, detail="Image not found")
+    data = resp.read()
+    content_type = "image/jpeg"
+    return Response(content=data, media_type=content_type,
+                    headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/api/airing")
 def get_airing():
     return {"data": api.check_for_updates()}
