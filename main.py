@@ -123,10 +123,7 @@ def get_stream(
     quality: str = Query(default="best"),
     audio: str = Query(default="jpn"),
 ):
-    """
-    Resolve stream → get m3u8 URL → return a proxied player URL.
-    The real m3u8/kwik URL never reaches the browser.
-    """
+    """Resolve stream → get m3u8 URL → return a proxied player URL."""
     kwik_url = api.get_stream_url(anime_slug, episode_session, quality, audio)
     if not kwik_url:
         raise HTTPException(status_code=404, detail="Stream not found")
@@ -137,6 +134,33 @@ def get_stream(
 
     token = _up.quote(m3u8_url, safe="")
     return {"stream_url": f"/api/player?token={token}&_={uuid.uuid4().hex[:8]}", "playlist_url": None}
+
+
+@app.get("/api/stream/qualities")
+def get_stream_qualities(
+    anime_slug: str = Query(...),
+    episode_session: str = Query(...),
+):
+    """Return all available quality+audio combinations for an episode."""
+    from bs4 import BeautifulSoup
+    from anime_downloader.utils import constants
+
+    play_url = f"{constants.PLAY_URL}/{anime_slug}/{episode_session}"
+    response = api._request(play_url)
+    if not response:
+        raise HTTPException(status_code=404, detail="Episode page not found")
+
+    soup = BeautifulSoup(response.read(), "html.parser")
+    buttons = soup.find_all("button", attrs={"data-src": True, "data-av1": "0"})
+
+    streams = []
+    for b in buttons:
+        q = b.get("data-resolution") or "0"
+        a = b.get("data-audio") or "jpn"
+        streams.append({"quality": q, "audio": a})
+
+    streams.sort(key=lambda s: int(s["quality"]) if s["quality"].isdigit() else 9999, reverse=True)
+    return {"streams": streams}
 
 
 @app.get("/api/player")
