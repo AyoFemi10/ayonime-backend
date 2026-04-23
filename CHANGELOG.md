@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-04-23)
+
+### Features
+
+- Add /api/anime/{slug}/info endpoint
+  ([`30e3bd4`](https://github.com/AyoFemi10/ayonime-backend/commit/30e3bd45d4ca8f765e2eb698de7686e41d4a00d1))
+
+
 ## v0.7.0 (2026-04-23)
 
 ### Features
