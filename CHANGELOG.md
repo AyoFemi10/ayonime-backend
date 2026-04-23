@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-04-23)
+
+### Features
+
+- Add /api/app/version endpoint for update checks
+  ([`2c1e54a`](https://github.com/AyoFemi10/ayonime-backend/commit/2c1e54a42634908acf5cd6c69a1d98b8289e0a1c))
+
+
 ## v0.5.0 (2026-04-22)
 
 ### Features
