@@ -155,6 +155,24 @@ def get_top_anime():
     except Exception:
         raise HTTPException(status_code=502, detail="Failed to parse top anime")
 
+@app.get("/api/anime/{slug}/info")
+def get_anime_info(slug: str, anime_name: str = Query(default="")):
+    """Fetch anime metadata from AnimePahe search."""
+    import json as _json
+    from anime_downloader.utils import constants
+    name = anime_name or slug
+    resp = api._request(f"{constants.SEARCH_URL}&q={_up.quote(name)}")
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch anime info")
+    data = _json.loads(resp.read())
+    results = data.get("data", [])
+    # Find best match
+    match = next((r for r in results if r.get("session") == slug), results[0] if results else None)
+    if not match:
+        raise HTTPException(status_code=404, detail="Anime not found")
+    return {"data": match}
+
+
 @app.get("/api/anime/{slug}/episodes")
 def get_episodes(slug: str, anime_name: str = Query(default="")):
     episodes = api.fetch_episode_data(anime_name or slug, slug)
