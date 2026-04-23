@@ -70,6 +70,31 @@ def _set_job(job_id: str, data: dict):
 def search(q: str = Query(..., min_length=1)):
     return {"data": api.search(q)}
 
+@app.get("/api/genre")
+def get_by_genre(genre: str = Query(...), page: int = Query(default=1, ge=1)):
+    """Search anime by genre using AnimePahe's search API."""
+    import json as _json
+    resp = api._request(f"https://animepahe.pw/api?m=search&q={_up.quote(genre)}&page={page}")
+    if not resp:
+        raise HTTPException(status_code=502, detail="Failed to fetch genre")
+    data = _json.loads(resp.read())
+    return {
+        "data": data.get("data", []),
+        "total": data.get("total", 0),
+        "last_page": data.get("last_page", 1),
+        "current_page": data.get("current_page", page),
+    }
+
+GENRES = [
+    "Action", "Adventure", "Comedy", "Drama", "Fantasy",
+    "Horror", "Mecha", "Music", "Mystery", "Psychological",
+    "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller"
+]
+
+@app.get("/api/genres")
+def get_genres():
+    return {"genres": GENRES}
+
 @app.get("/api/app/version")
 def get_app_version():
     """Returns the latest app version info for update checks."""
