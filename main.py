@@ -70,6 +70,18 @@ def _set_job(job_id: str, data: dict):
 def search(q: str = Query(..., min_length=1)):
     return {"data": api.search(q)}
 
+@app.get("/api/app/version")
+def get_app_version():
+    """Returns the latest app version info for update checks."""
+    return {
+        "latest_version": "1.1.0",
+        "release_date": "2026-04-23",
+        "download_url": "https://ayonime.ayohost.site/download-app",
+        "force_update_after_days": 10,
+        "changelog": "Bug fixes: streaming, images, downloads to device, better UI",
+    }
+
+
 @app.get("/api/proxy/img")
 def proxy_image(url: str = Query(...)):
     """Proxy anime poster images to bypass hotlink protection."""
