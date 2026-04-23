@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-04-23)
+
+### Features
+
+- Add /api/genre and /api/genres endpoints
+  ([`a1f4a2b`](https://github.com/AyoFemi10/ayonime-backend/commit/a1f4a2b90a57aa524eef6b9f23466310e72bf251))
+
+
 ## v0.6.0 (2026-04-23)
 
 ### Features
